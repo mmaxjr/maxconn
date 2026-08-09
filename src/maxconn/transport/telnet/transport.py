@@ -64,7 +64,7 @@ class TelnetTransport(Transport):
         self._sock.settimeout(timeout)
         try:
             raw = self._sock.recv(4096)
-        except socket.timeout as exc:
+        except TimeoutError as exc:
             raise ConnectionTimeoutError("Timed out waiting for data") from exc
         except OSError as exc:
             raise ProtocolError(f"Socket error while receiving data: {exc}") from exc

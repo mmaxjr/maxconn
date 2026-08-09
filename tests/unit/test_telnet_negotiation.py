@@ -26,7 +26,7 @@ def test_will_echo_is_accepted_with_do():
 
 def test_will_suppress_go_ahead_is_accepted_with_do():
     neg = TelnetNegotiator()
-    plain, response = neg.feed(bytes([IAC, WILL, OPT_SUPPRESS_GO_AHEAD]))
+    _plain, response = neg.feed(bytes([IAC, WILL, OPT_SUPPRESS_GO_AHEAD]))
     assert response == bytes([IAC, DO, OPT_SUPPRESS_GO_AHEAD])
 
 
@@ -47,9 +47,9 @@ def test_do_any_option_is_refused_with_wont():
 
 def test_wont_and_dont_require_no_response():
     neg = TelnetNegotiator()
-    plain, response = neg.feed(bytes([IAC, WONT, OPT_ECHO]))
+    _plain, response = neg.feed(bytes([IAC, WONT, OPT_ECHO]))
     assert response == b""
-    plain, response = neg.feed(bytes([IAC, DONT, OPT_ECHO]))
+    _plain, response = neg.feed(bytes([IAC, DONT, OPT_ECHO]))
     assert response == b""
 
 

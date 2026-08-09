@@ -13,13 +13,13 @@ from maxconn.transport.base import Connection
 from maxconn.transport.telnet.transport import TelnetTransport
 
 __all__ = [
-    "connect",
-    "Connection",
-    "MaxConnError",
-    "ConnectionTimeoutError",
     "AuthenticationError",
-    "ProtocolError",
     "ChannelError",
+    "Connection",
+    "ConnectionTimeoutError",
+    "MaxConnError",
+    "ProtocolError",
+    "connect",
 ]
 
 _DEFAULT_PORTS = {"telnet": 23}

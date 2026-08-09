@@ -1,5 +1,4 @@
 import pytest
-
 from tests.integration.telnet_server import start_telnet_server
 
 

@@ -65,7 +65,7 @@ class Connection:
     def close(self) -> None:
         self._transport.close()
 
-    def __enter__(self) -> "Connection":
+    def __enter__(self) -> Connection:
         return self
 
     def __exit__(self, exc_type, exc, tb) -> None:

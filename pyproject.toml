@@ -24,3 +24,7 @@ testpaths = ["tests"]
 [tool.ruff]
 line-length = 100
 src = ["src"]
+
+[tool.ruff.lint]
+# PYI034: `Self` requires Python 3.11+; this project supports 3.10+.
+ignore = ["PYI034"]
