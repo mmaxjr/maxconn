@@ -28,6 +28,13 @@ class TelnetServerHandle:
 
 
 def _handle_client(conn: socket.socket, username: str, password: str) -> None:
+    try:
+        _serve_client(conn, username, password)
+    except OSError:
+        pass  # client disconnected mid-exchange, e.g. after inspecting the banner only
+
+
+def _serve_client(conn: socket.socket, username: str, password: str) -> None:
     with conn:
         conn.sendall(bytes([IAC, WILL, ECHO]))
         conn.sendall(bytes([IAC, WILL, SUPPRESS_GO_AHEAD]))
