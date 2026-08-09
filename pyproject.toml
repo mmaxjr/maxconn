@@ -7,12 +7,19 @@ name = "maxconn"
 version = "0.1.0"
 description = "SSH and Telnet client implemented from scratch, without paramiko/netmiko/scrapli/telnetlib."
 requires-python = ">=3.10"
-dependencies = []
+dependencies = [
+    "cryptography>=42",
+]
 
 [project.optional-dependencies]
 dev = [
     "pytest>=8.0",
     "ruff>=0.6",
+    # paramiko is a TEST-ONLY dependency: it powers a local SSH server used
+    # only by tests/integration/ssh_server.py to validate our from-scratch
+    # SSHTransport against a real, independent SSH implementation. It is
+    # never imported by maxconn itself.
+    "paramiko>=3.4",
 ]
 
 [tool.hatch.build.targets.wheel]
