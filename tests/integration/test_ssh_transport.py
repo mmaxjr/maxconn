@@ -1,7 +1,15 @@
 import pytest
 
-from maxconn.exceptions import AuthenticationError, ConnectionTimeoutError
+from maxconn.exceptions import AuthenticationError, ConnectionTimeoutError, ProtocolError
 from maxconn.transport.ssh.transport import SSHTransport
+
+
+class _TrackableSocket:
+    def __init__(self):
+        self.closed = False
+
+    def close(self):
+        self.closed = True
 
 
 def test_connect_authenticate_send_recv_close(ssh_server):
@@ -42,3 +50,26 @@ def test_connect_to_closed_port_raises_connection_timeout_error():
     transport = SSHTransport()
     with pytest.raises(ConnectionTimeoutError):
         transport.connect("127.0.0.1", 1, timeout=1.0)
+
+
+def test_connect_closes_socket_when_handshake_fails(monkeypatch):
+    sock = _TrackableSocket()
+
+    def fake_create_connection(address, timeout):
+        return sock
+
+    def fake_establish_encrypted_session(sock):
+        raise ProtocolError("handshake failed")
+
+    monkeypatch.setattr("socket.create_connection", fake_create_connection)
+    monkeypatch.setattr(
+        "maxconn.transport.ssh.transport.establish_encrypted_session",
+        fake_establish_encrypted_session,
+    )
+
+    transport = SSHTransport()
+    with pytest.raises(ProtocolError, match="handshake failed"):
+        transport.connect("127.0.0.1", 22, timeout=1.0)
+
+    assert sock.closed
+    assert transport._sock is None

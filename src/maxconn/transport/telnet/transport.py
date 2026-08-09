@@ -68,6 +68,8 @@ class TelnetTransport(Transport):
             raise ConnectionTimeoutError("Timed out waiting for data") from exc
         except OSError as exc:
             raise ProtocolError(f"Socket error while receiving data: {exc}") from exc
+        if raw == b"":
+            raise ProtocolError("Telnet connection closed by peer")
 
         plain, response = self._negotiator.feed(raw)
         if response:

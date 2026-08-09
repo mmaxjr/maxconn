@@ -69,26 +69,27 @@ class SSHChannel:
     def recv_data(self) -> bytes:
         """Read one channel message and return its data payload (empty
         bytes for control-only messages like a window adjustment)."""
-        payload = self._session.recv_message()
-        reader = Reader(payload)
-        msg_type = reader.read_byte()
+        while True:
+            payload = self._session.recv_message()
+            reader = Reader(payload)
+            msg_type = reader.read_byte()
 
-        if msg_type == messages.SSH_MSG_CHANNEL_DATA:
-            reader.read_uint32()  # recipient channel (ours; unused)
-            return reader.read_string()
-        if msg_type == messages.SSH_MSG_CHANNEL_EXTENDED_DATA:
-            reader.read_uint32()
-            reader.read_uint32()  # data_type_code (e.g. stderr)
-            return reader.read_string()
-        if msg_type in _CONTROL_ONLY_MESSAGES:
-            return b""
-        if msg_type == messages.SSH_MSG_CHANNEL_CLOSE:
-            self._closed = True
-            close_payload = bytes([messages.SSH_MSG_CHANNEL_CLOSE]) + encode_uint32(self.peer_id)
-            self._session.send_message(close_payload)
-            return b""
+            if msg_type == messages.SSH_MSG_CHANNEL_DATA:
+                reader.read_uint32()  # recipient channel (ours; unused)
+                return reader.read_string()
+            if msg_type == messages.SSH_MSG_CHANNEL_EXTENDED_DATA:
+                reader.read_uint32()
+                reader.read_uint32()  # data_type_code (e.g. stderr)
+                return reader.read_string()
+            if msg_type in _CONTROL_ONLY_MESSAGES:
+                continue
+            if msg_type == messages.SSH_MSG_CHANNEL_CLOSE:
+                self._closed = True
+                close_payload = bytes([messages.SSH_MSG_CHANNEL_CLOSE]) + encode_uint32(self.peer_id)
+                self._session.send_message(close_payload)
+                return b""
 
-        raise ChannelError(f"Unexpected message on SSH channel: type {msg_type}")
+            raise ChannelError(f"Unexpected message on SSH channel: type {msg_type}")
 
     @property
     def closed(self) -> bool:

@@ -1,8 +1,18 @@
 import socket
 
+from maxconn.transport.ssh import messages
 from maxconn.transport.ssh.auth import authenticate_password, request_userauth_service
-from maxconn.transport.ssh.channel import open_session_channel
+from maxconn.transport.ssh.channel import SSHChannel, open_session_channel
 from maxconn.transport.ssh.negotiate import establish_encrypted_session
+from maxconn.transport.ssh.wire import encode_string, encode_uint32
+
+
+class _QueuedSession:
+    def __init__(self, payloads):
+        self._payloads = list(payloads)
+
+    def recv_message(self):
+        return self._payloads.pop(0)
 
 
 def _authenticated_session(ssh_server):
@@ -53,3 +63,11 @@ def test_shell_session_echoes_commands(ssh_server):
             channel.recv_data()
     finally:
         sock.close()
+
+
+def test_recv_data_skips_control_messages_until_channel_data_arrives():
+    control_payload = bytes([messages.SSH_MSG_CHANNEL_WINDOW_ADJUST]) + encode_uint32(0) + encode_uint32(1024)
+    data_payload = bytes([messages.SSH_MSG_CHANNEL_DATA]) + encode_uint32(0) + encode_string(b"ready>")
+    channel = SSHChannel(_QueuedSession([control_payload, data_payload]), local_id=0, peer_id=1)
+
+    assert channel.recv_data() == b"ready>"

@@ -30,7 +30,12 @@ class SSHTransport(Transport):
         except OSError as exc:
             raise ConnectionTimeoutError(f"Could not connect to {host}:{port}: {exc}") from exc
         self._sock = sock
-        self._session = establish_encrypted_session(sock)
+        try:
+            self._session = establish_encrypted_session(sock)
+        except Exception:
+            sock.close()
+            self._sock = None
+            raise
 
     def authenticate(
         self,
