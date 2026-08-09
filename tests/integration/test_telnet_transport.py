@@ -1,6 +1,6 @@
 import pytest
 
-from maxconn.exceptions import ConnectionTimeoutError
+from maxconn.exceptions import AuthenticationError, ConnectionTimeoutError
 from maxconn.transport.telnet.transport import TelnetTransport
 
 
@@ -26,3 +26,18 @@ def test_connect_to_closed_port_raises_connection_timeout_error():
     transport = TelnetTransport()
     with pytest.raises(ConnectionTimeoutError):
         transport.connect("127.0.0.1", 1, timeout=1.0)
+
+
+def test_authenticate_with_correct_credentials_succeeds(telnet_server):
+    transport = TelnetTransport()
+    transport.connect(telnet_server.host, telnet_server.port, timeout=5.0)
+    transport.authenticate(telnet_server.username, password=telnet_server.password)
+    transport.close()
+
+
+def test_authenticate_with_wrong_password_raises_authentication_error(telnet_server):
+    transport = TelnetTransport()
+    transport.connect(telnet_server.host, telnet_server.port, timeout=5.0)
+    with pytest.raises(AuthenticationError):
+        transport.authenticate(telnet_server.username, password="wrong-password")
+    transport.close()

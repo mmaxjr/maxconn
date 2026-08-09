@@ -56,14 +56,25 @@ def _serve_client(conn: socket.socket, username: str, password: str) -> None:
 
 
 def _read_line(conn: socket.socket) -> str | None:
+    """Read a line, discarding any IAC option-negotiation replies the
+    client sends back (e.g. IAC DO ECHO) so they don't get treated as
+    part of the username/password/command text."""
     buffer = bytearray()
+    pending_iac = 0  # bytes still expected to complete an IAC WILL/WONT/DO/DONT sequence
     while True:
         chunk = conn.recv(1)
         if not chunk:
             return None
-        if chunk == b"\n":
+        byte = chunk[0]
+        if pending_iac:
+            pending_iac -= 1
+            continue
+        if byte == IAC:
+            pending_iac = 2  # command byte + option byte still to come
+            continue
+        if byte == ord("\n"):
             return bytes(buffer).decode(errors="replace").rstrip("\r")
-        buffer.extend(chunk)
+        buffer.append(byte)
 
 
 def start_telnet_server(username: str = "admin", password: str = "secret") -> TelnetServerHandle:

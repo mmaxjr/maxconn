@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import socket
+import time
 
-from maxconn.exceptions import ConnectionTimeoutError, ProtocolError
+from maxconn.exceptions import AuthenticationError, ConnectionTimeoutError, ProtocolError
 from maxconn.transport.base import Transport
 from maxconn.transport.telnet.negotiation import TelnetNegotiator
 
@@ -26,7 +27,30 @@ class TelnetTransport(Transport):
         password: str | None = None,
         pkey: bytes | None = None,
     ) -> None:
-        raise NotImplementedError  # implemented in Task 5
+        if pkey is not None:
+            raise AuthenticationError("Telnet does not support public-key authentication")
+
+        self._read_until(("login:", "username:"), timeout=10.0)
+        self.send(username + "\n")
+
+        if password is not None:
+            self._read_until(("password:",), timeout=10.0)
+            self.send(password + "\n")
+
+        reply = self._read_until(("welcome", "incorrect", "failed", ">", "#"), timeout=10.0)
+        if "incorrect" in reply.lower() or "failed" in reply.lower():
+            raise AuthenticationError(f"Telnet authentication failed for user {username!r}")
+
+    def _read_until(self, markers: tuple[str, ...], timeout: float) -> str:
+        deadline = time.monotonic() + timeout
+        buffer = ""
+        while time.monotonic() < deadline:
+            remaining = deadline - time.monotonic()
+            chunk = self.recv(timeout=max(remaining, 0.01))
+            buffer += chunk.decode(errors="replace")
+            if any(marker in buffer.lower() for marker in markers):
+                return buffer
+        raise ConnectionTimeoutError(f"Timed out waiting for {markers!r}; got: {buffer!r}")
 
     def send(self, data: bytes | str) -> None:
         if self._sock is None:
