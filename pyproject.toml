@@ -16,6 +16,7 @@ ssh = [
 dev = [
     "pytest>=8.0",
     "ruff>=0.6",
+    "tomli>=2; python_version < '3.11'",
     "cryptography>=42",
     # paramiko is a TEST-ONLY dependency: it powers a local SSH server used
     # only by tests/integration/ssh_server.py to validate our from-scratch

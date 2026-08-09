@@ -1,6 +1,9 @@
 from pathlib import Path
 
-import tomllib
+try:
+    import tomllib
+except ModuleNotFoundError:  # Python 3.10
+    import tomli as tomllib
 
 
 def test_cryptography_is_only_required_by_ssh_and_dev_extras():
