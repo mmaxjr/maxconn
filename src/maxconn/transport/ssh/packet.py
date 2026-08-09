@@ -28,13 +28,17 @@ def encode_binary_packet(
     block_size: int = 8,
     random_bytes: Callable[[int], bytes] = os.urandom,
 ) -> bytes:
-    content_len = 1 + len(payload)  # padding_length byte + payload
-    padding_length = block_size - (content_len % block_size)
+    # RFC 4253 §6: the concatenation of packet_length, padding_length,
+    # payload, and padding - INCLUDING the 4-byte packet_length field
+    # itself - must be a multiple of the block size. The *value* written
+    # into the packet_length field, however, does NOT count itself.
+    total_before_padding = 4 + 1 + len(payload)  # length field + padding_length byte + payload
+    padding_length = block_size - (total_before_padding % block_size)
     if padding_length < MIN_PADDING:
         padding_length += block_size
 
     padding = random_bytes(padding_length)
-    packet_length = content_len + padding_length
+    packet_length = 1 + len(payload) + padding_length
     return struct.pack(">I", packet_length) + bytes([padding_length]) + payload + padding
 
 

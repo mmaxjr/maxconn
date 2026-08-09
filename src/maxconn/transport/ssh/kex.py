@@ -15,7 +15,10 @@ from maxconn.transport.ssh import messages
 from maxconn.transport.ssh.wire import Reader, encode_name_list, encode_uint32
 
 KEX_ALGORITHMS = ["diffie-hellman-group14-sha256"]
-SERVER_HOST_KEY_ALGORITHMS = ["ssh-rsa"]
+# "rsa-sha2-256" (RFC 8332) is the modern SHA-256-based signature scheme for
+# RSA host keys; plain "ssh-rsa" (SHA-1) is offered only as a fallback for
+# older servers, since most current implementations reject SHA-1 signatures.
+SERVER_HOST_KEY_ALGORITHMS = ["rsa-sha2-256", "ssh-rsa"]
 ENCRYPTION_ALGORITHMS = ["aes128-ctr"]
 MAC_ALGORITHMS = ["hmac-sha2-256"]
 COMPRESSION_ALGORITHMS = ["none"]

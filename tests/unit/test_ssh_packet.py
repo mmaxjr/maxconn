@@ -7,7 +7,8 @@ def test_encode_pads_to_block_size_multiple():
     packet_length = int.from_bytes(packet[:4], "big")
     # length field covers padding_length(1) + payload + padding, not itself
     assert len(packet) == 4 + packet_length
-    assert (len(packet) - 4) % 8 == 0
+    # RFC 4253 §6: the 4-byte length field itself counts toward the multiple.
+    assert len(packet) % 8 == 0
 
 
 def test_encode_padding_length_is_at_least_four():
@@ -56,4 +57,4 @@ def test_encode_decode_round_trip_large_block_size():
         return chunk
 
     assert decode_binary_packet(read_exact) == payload
-    assert (len(packet) - 4) % 16 == 0
+    assert len(packet) % 16 == 0
