@@ -25,7 +25,7 @@ class TelnetTransport(Transport):
         self,
         username: str,
         password: str | None = None,
-        pkey: bytes | None = None,
+        pkey: object | None = None,
     ) -> None:
         if pkey is not None:
             raise AuthenticationError("Telnet does not support public-key authentication")

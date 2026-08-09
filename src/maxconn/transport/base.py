@@ -17,8 +17,11 @@ class Transport(ABC):
         self,
         username: str,
         password: str | None = None,
-        pkey: bytes | None = None,
+        pkey: object | None = None,
     ) -> None: ...
+    # `pkey`'s concrete type is transport-specific (e.g. SSHTransport
+    # expects a cryptography RSAPrivateKey); transports that don't support
+    # key-based auth raise AuthenticationError when it's passed.
 
     @abstractmethod
     def send(self, data: bytes | str) -> None: ...

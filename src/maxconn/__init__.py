@@ -9,8 +9,7 @@ from maxconn.exceptions import (
     MaxConnError,
     ProtocolError,
 )
-from maxconn.transport.base import Connection
-from maxconn.transport.telnet.transport import TelnetTransport
+from maxconn.transport.base import Connection, Transport
 
 __all__ = [
     "AuthenticationError",
@@ -22,7 +21,7 @@ __all__ = [
     "connect",
 ]
 
-_DEFAULT_PORTS = {"telnet": 23}
+_DEFAULT_PORTS = {"telnet": 23, "ssh": 22}
 
 
 def connect(
@@ -31,17 +30,26 @@ def connect(
     protocol: str,
     username: str,
     password: str | None = None,
+    pkey: object | None = None,
     port: int | None = None,
     timeout: float = 10.0,
 ) -> Connection:
+    # Imported per-protocol, not at module load, so using one transport
+    # never pulls in the other's dependencies (see the "import only what
+    # you use" rule in the project brief).
+    transport: Transport
     if protocol == "telnet":
+        from maxconn.transport.telnet.transport import TelnetTransport
+
         transport = TelnetTransport()
+    elif protocol == "ssh":
+        from maxconn.transport.ssh.transport import SSHTransport
+
+        transport = SSHTransport()
     else:
-        raise ValueError(
-            f"Unsupported protocol: {protocol!r}. Supported: 'telnet' ('ssh' coming in a future release)"
-        )
+        raise ValueError(f"Unsupported protocol: {protocol!r}. Supported: 'telnet', 'ssh'")
 
     resolved_port = port if port is not None else _DEFAULT_PORTS[protocol]
     transport.connect(host, resolved_port, timeout)
-    transport.authenticate(username, password=password)
+    transport.authenticate(username, password=password, pkey=pkey)
     return Connection(transport)

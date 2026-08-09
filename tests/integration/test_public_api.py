@@ -17,6 +17,20 @@ def test_connect_over_telnet_and_run_command(telnet_server):
     assert "echo:show version" in output
 
 
+def test_connect_over_ssh_and_run_command(ssh_server):
+    with maxconn.connect(
+        ssh_server.host,
+        protocol="ssh",
+        username=ssh_server.username,
+        password=ssh_server.password,
+        port=ssh_server.port,
+        timeout=5.0,
+    ) as conn:
+        output = conn.send_command("show version", read_timeout=3.0)
+
+    assert "echo:show version" in output
+
+
 def test_connect_with_unsupported_protocol_raises_value_error(telnet_server):
     with pytest.raises(ValueError):
         maxconn.connect(
