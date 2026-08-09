@@ -29,12 +29,16 @@ class SSHSessionCipher:
     what we send, one for what we receive - constructed with the matching
     enc/iv/mac keys for that direction."""
 
-    def __init__(self, enc_key: bytes, iv: bytes, mac_key: bytes) -> None:
+    def __init__(self, enc_key: bytes, iv: bytes, mac_key: bytes, initial_seq: int = 0) -> None:
         cipher = Cipher(algorithms.AES(enc_key), modes.CTR(iv))
         self._encryptor = cipher.encryptor()
         self._decryptor = cipher.decryptor()
         self._mac_key = mac_key
-        self._seq = 0
+        # RFC 4253 §6.4: the sequence number counts every packet sent on
+        # this connection since the start, not just encrypted ones - so
+        # this session's first packet is rarely sequence 0 (KEXINIT,
+        # KEXDH_INIT/REPLY, and NEWKEYS itself already consumed 0..2).
+        self._seq = initial_seq
 
     def encode_packet(self, payload: bytes, random_bytes: Callable[[int], bytes] | None = None) -> bytes:
         random_bytes = random_bytes or os.urandom

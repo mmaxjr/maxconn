@@ -56,6 +56,25 @@ def test_tampered_ciphertext_fails_mac_verification():
         reader.decode_packet(_make_reader(bytes(packet)))
 
 
+def test_initial_seq_must_match_on_both_sides():
+    enc_key, iv, mac_key = b"\xee" * 16, b"\xff" * 16, b"\x12" * 32
+    writer = SSHSessionCipher(enc_key, iv, mac_key, initial_seq=3)
+    reader = SSHSessionCipher(enc_key, iv, mac_key, initial_seq=3)
+
+    packet = writer.encode_packet(b"post-newkeys message")
+    assert reader.decode_packet(_make_reader(packet)) == b"post-newkeys message"
+
+
+def test_mismatched_initial_seq_fails_mac_verification():
+    enc_key, iv, mac_key = b"\xee" * 16, b"\xff" * 16, b"\x12" * 32
+    writer = SSHSessionCipher(enc_key, iv, mac_key, initial_seq=3)
+    reader = SSHSessionCipher(enc_key, iv, mac_key, initial_seq=0)  # forgot to offset
+
+    packet = writer.encode_packet(b"post-newkeys message")
+    with pytest.raises(ProtocolError):
+        reader.decode_packet(_make_reader(packet))
+
+
 def test_wrong_mac_key_fails_verification():
     enc_key, iv = b"\xaa" * 16, b"\xbb" * 16
     writer = SSHSessionCipher(enc_key, iv, mac_key=b"\xcc" * 32)
