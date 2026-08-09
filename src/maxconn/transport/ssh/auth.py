@@ -3,12 +3,21 @@ plus the "password" and "publickey" authentication methods."""
 
 from __future__ import annotations
 
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.asymmetric import padding, rsa
+
 from maxconn.exceptions import AuthenticationError, ProtocolError
 from maxconn.transport.ssh import messages
 from maxconn.transport.ssh.negotiate import EncryptedSession
-from maxconn.transport.ssh.wire import Reader, encode_string
+from maxconn.transport.ssh.wire import Reader, encode_mpint, encode_string
 
 _MAX_BANNERS = 10
+_PUBKEY_ALGORITHM = "rsa-sha2-256"
+
+
+def build_rsa_public_key_blob(public_key: rsa.RSAPublicKey) -> bytes:
+    numbers = public_key.public_numbers()
+    return encode_string(b"ssh-rsa") + encode_mpint(numbers.e) + encode_mpint(numbers.n)
 
 
 def request_userauth_service(session: EncryptedSession) -> None:
@@ -53,3 +62,43 @@ def authenticate_password(session: EncryptedSession, username: str, password: st
     if msg_type == messages.SSH_MSG_USERAUTH_FAILURE:
         raise AuthenticationError(f"SSH password authentication failed for user {username!r}")
     raise ProtocolError(f"Unexpected message during password authentication: {msg_type}")
+
+
+def authenticate_publickey(session: EncryptedSession, username: str, private_key: rsa.RSAPrivateKey) -> None:
+    """RFC 4252 §7. Signs directly (no accept-probing round trip) since the
+    servers we target don't require it."""
+    public_key_blob = build_rsa_public_key_blob(private_key.public_key())
+
+    signed_part = (
+        encode_string(session.session_id)
+        + bytes([messages.SSH_MSG_USERAUTH_REQUEST])
+        + encode_string(username.encode("utf-8"))
+        + encode_string(b"ssh-connection")
+        + encode_string(b"publickey")
+        + bytes([1])  # TRUE: a signature is included
+        + encode_string(_PUBKEY_ALGORITHM.encode("ascii"))
+        + encode_string(public_key_blob)
+    )
+    signature = private_key.sign(signed_part, padding.PKCS1v15(), hashes.SHA256())
+    signature_blob = encode_string(_PUBKEY_ALGORITHM.encode("ascii")) + encode_string(signature)
+
+    request = (
+        bytes([messages.SSH_MSG_USERAUTH_REQUEST])
+        + encode_string(username.encode("utf-8"))
+        + encode_string(b"ssh-connection")
+        + encode_string(b"publickey")
+        + bytes([1])
+        + encode_string(_PUBKEY_ALGORITHM.encode("ascii"))
+        + encode_string(public_key_blob)
+        + encode_string(signature_blob)
+    )
+    session.send_message(request)
+
+    payload = _read_until_auth_result(session)
+    reader = Reader(payload)
+    msg_type = reader.read_byte()
+    if msg_type == messages.SSH_MSG_USERAUTH_SUCCESS:
+        return
+    if msg_type == messages.SSH_MSG_USERAUTH_FAILURE:
+        raise AuthenticationError(f"SSH public-key authentication failed for user {username!r}")
+    raise ProtocolError(f"Unexpected message during public-key authentication: {msg_type}")
