@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import time
 from abc import ABC, abstractmethod
+
+from maxconn.exceptions import ConnectionTimeoutError
 
 
 class Transport(ABC):
@@ -25,3 +28,45 @@ class Transport(ABC):
 
     @abstractmethod
     def close(self) -> None: ...
+
+
+def read_until(transport: Transport, markers: tuple[str, ...], timeout: float) -> str:
+    deadline = time.monotonic() + timeout
+    buffer = ""
+    while time.monotonic() < deadline:
+        remaining = deadline - time.monotonic()
+        chunk = transport.recv(timeout=max(remaining, 0.01))
+        buffer += chunk.decode(errors="replace")
+        if any(marker.lower() in buffer.lower() for marker in markers):
+            return buffer
+    raise ConnectionTimeoutError(f"Timed out waiting for markers {markers!r}; got: {buffer!r}")
+
+
+class Connection:
+    def __init__(self, transport: Transport) -> None:
+        self._transport = transport
+
+    def send_command(self, command: str, *, read_timeout: float = 5.0) -> str:
+        self._transport.send(command + "\n")
+        deadline = time.monotonic() + read_timeout
+        buffer = ""
+        while time.monotonic() < deadline:
+            remaining = deadline - time.monotonic()
+            try:
+                chunk = self._transport.recv(timeout=max(remaining, 0.01))
+            except ConnectionTimeoutError:
+                break
+            buffer += chunk.decode(errors="replace")
+        return buffer
+
+    def read_until(self, marker: str, timeout: float = 10.0) -> str:
+        return read_until(self._transport, (marker,), timeout)
+
+    def close(self) -> None:
+        self._transport.close()
+
+    def __enter__(self) -> "Connection":
+        return self
+
+    def __exit__(self, exc_type, exc, tb) -> None:
+        self.close()
