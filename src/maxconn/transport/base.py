@@ -62,6 +62,12 @@ class Connection:
             buffer += chunk.decode(errors="replace")
         return buffer
 
+    def send(self, data: bytes | str) -> None:
+        self._transport.send(data)
+
+    def recv(self, timeout: float | None = None) -> bytes:
+        return self._transport.recv(timeout=timeout)
+
     def read_until(self, marker: str, timeout: float = 10.0) -> str:
         return read_until(self._transport, (marker,), timeout)
 

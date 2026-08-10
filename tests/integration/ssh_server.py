@@ -86,7 +86,7 @@ def _serve_client(
     server = _ServerInterface(username, password, client_key)
     try:
         transport.start_server(server=server)
-    except (paramiko.SSHException, OSError):
+    except (EOFError, paramiko.SSHException, OSError):
         return
 
     channel = transport.accept(20)
