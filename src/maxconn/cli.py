@@ -4,6 +4,7 @@ import argparse
 import sys
 
 import maxconn
+from maxconn.net.mtr import run_mtr_table
 from maxconn.protocol.snmp import SNMPClient
 
 
@@ -43,8 +44,9 @@ def main(argv: list[str] | None = None) -> int:
 
     mtr_command = subparsers.add_parser("mtr")
     mtr_command.add_argument("host")
-    mtr_command.add_argument("--count", type=int, default=10)
+    mtr_command.add_argument("--count", type=int, default=None)
     mtr_command.add_argument("--timeout", type=float, default=1.0)
+    mtr_command.add_argument("--interval", type=float, default=1.0)
 
     snmp_command = subparsers.add_parser("snmp")
     snmp_subcommands = snmp_command.add_subparsers(dest="snmp_action", required=True)
@@ -92,15 +94,19 @@ def main(argv: list[str] | None = None) -> int:
         return 0 if result.returncode == 0 else 1
 
     if args.protocol == "mtr":
-        result = maxconn.mtr(args.host, count=args.count, timeout=args.timeout)
-        avg = "n/a" if result.avg is None else f"{result.avg:.3f}s"
-        best = "n/a" if result.best is None else f"{result.best:.3f}s"
-        worst = "n/a" if result.worst is None else f"{result.worst:.3f}s"
-        print(
-            f"{result.host} sent={result.sent} received={result.received} "
-            f"loss={result.loss_percent:.2f}% best={best} avg={avg} worst={worst}"
-        )
-        return 0 if result.received else 1
+        try:
+            table = run_mtr_table(
+                args.host,
+                count=args.count,
+                timeout=args.timeout,
+                interval=args.interval,
+            )
+        except KeyboardInterrupt:
+            print()
+            return 0
+        if args.count is not None:
+            print(table)
+        return 0
 
     if args.protocol == "snmp":
         client = SNMPClient(

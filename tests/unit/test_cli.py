@@ -53,7 +53,7 @@ def test_cli_prints_package_version(capsys):
     exit_code = maxconn.cli.main(["--version"])
 
     assert exit_code == 0
-    assert "maxconn 0.1.3" in capsys.readouterr().out
+    assert "maxconn 0.1.4" in capsys.readouterr().out
 
 
 def test_cli_prints_package_version_from_sys_argv(monkeypatch, capsys):
@@ -62,7 +62,7 @@ def test_cli_prints_package_version_from_sys_argv(monkeypatch, capsys):
     exit_code = maxconn.cli.main()
 
     assert exit_code == 0
-    assert "maxconn 0.1.3" in capsys.readouterr().out
+    assert "maxconn 0.1.4" in capsys.readouterr().out
 
 
 def test_cli_ping_prints_reachable_status(monkeypatch, capsys):
@@ -135,21 +135,21 @@ def test_cli_traceroute_prints_hops(monkeypatch, capsys):
 
 
 def test_cli_mtr_prints_summary(monkeypatch, capsys):
-    class Result:
-        host = "192.0.2.1"
-        sent = 5
-        received = 4
-        loss_percent = 20.0
-        avg = 0.015
-        best = 0.010
-        worst = 0.020
+    def fake_run_mtr_table(host, count=None, timeout=1.0, interval=1.0):
+        assert count == 5
+        assert interval == 0.0
+        return "#  Loss%  Sent  Avg  Host\n1  20%    5     15ms  192.0.2.1"
 
-    monkeypatch.setattr(maxconn.cli.maxconn, "mtr", lambda host, count=5, timeout=1.0: Result())
+    monkeypatch.setattr(maxconn.cli, "run_mtr_table", fake_run_mtr_table)
 
-    exit_code = maxconn.cli.main(["mtr", "192.0.2.1", "--count", "5", "--timeout", "1"])
+    exit_code = maxconn.cli.main(
+        ["mtr", "192.0.2.1", "--count", "5", "--timeout", "1", "--interval", "0"]
+    )
 
     assert exit_code == 0
-    assert "loss=20.00%" in capsys.readouterr().out
+    output = capsys.readouterr().out
+    assert "#  Loss%  Sent  Avg  Host" in output
+    assert "1  20%    5     15ms  192.0.2.1" in output
 
 
 def test_cli_snmp_get_prints_value(monkeypatch, capsys):
