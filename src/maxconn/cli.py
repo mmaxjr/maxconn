@@ -1,12 +1,19 @@
 from __future__ import annotations
 
 import argparse
+import sys
 
 import maxconn
 
 
+def _parse_ports(raw: str) -> list[int]:
+    return [int(part.strip()) for part in raw.split(",") if part.strip()]
+
+
 def main(argv: list[str] | None = None) -> int:
+    resolved_argv = sys.argv[1:] if argv is None else argv
     parser = argparse.ArgumentParser(prog="maxconn")
+    parser.add_argument("--version", action="store_true", help="print version and exit")
     subparsers = parser.add_subparsers(dest="protocol", required=True)
     for protocol in ("ssh", "telnet"):
         command = subparsers.add_parser(protocol)
@@ -18,7 +25,42 @@ def main(argv: list[str] | None = None) -> int:
         command.add_argument("--timeout", type=float, default=10.0)
         command.add_argument("--prompt", action="append", default=None)
 
-    args = parser.parse_args(argv)
+    ping_command = subparsers.add_parser("ping")
+    ping_command.add_argument("host")
+    ping_command.add_argument("--timeout", type=float, default=2.0)
+    ping_command.add_argument("--count", type=int, default=1)
+
+    scan_command = subparsers.add_parser("scan")
+    scan_command.add_argument("host")
+    scan_command.add_argument("--ports", required=True)
+    scan_command.add_argument("--timeout", type=float, default=1.0)
+    scan_command.add_argument("--concurrency", type=int, default=100)
+
+    if resolved_argv == ["--version"]:
+        print(f"maxconn {maxconn.__version__}")
+        return 0
+
+    args = parser.parse_args(resolved_argv)
+    if args.protocol == "ping":
+        result = maxconn.ping(args.host, timeout=args.timeout, count=args.count)
+        status = "reachable" if result.reachable else "unreachable"
+        print(f"{result.host} {status} in {result.elapsed:.3f}s")
+        if result.error:
+            print(result.error)
+        return 0 if result.reachable else 1
+
+    if args.protocol == "scan":
+        results = maxconn.scan(
+            args.host,
+            ports=_parse_ports(args.ports),
+            timeout=args.timeout,
+            concurrency=args.concurrency,
+        )
+        for result in results:
+            status = "open" if result.open else "closed"
+            print(f"{result.port} {status} ({result.elapsed:.3f}s)")
+        return 0 if any(result.open for result in results) else 1
+
     prompt_markers = tuple(args.prompt) if args.prompt else (">", "#")
     with maxconn.connect(
         args.host,

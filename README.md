@@ -64,11 +64,14 @@ Telnet não puxa dependências extras. SSH usa `cryptography` pelo extra `ssh`.
 Paramiko fica só nos testes, para subir um servidor SSH local e validar o
 cliente do MAXCONN contra uma implementação independente.
 
-Versão atual em desenvolvimento: `0.1.1`.
+Versão atual em desenvolvimento: `0.1.2`.
 
 CLI básica:
 
 ```bash
+maxconn --version
+maxconn ping 192.0.2.1
+maxconn scan 192.0.2.1 --ports 22,23,80,443
 maxconn ssh 192.0.2.10 --username admin --password secret --command "show version"
 maxconn telnet 192.0.2.20 --username admin --password secret --command "show status"
 ```
@@ -166,6 +169,41 @@ import maxconn
 
 result = maxconn.ping("192.0.2.1")
 print(result.reachable)
+```
+
+Scanner TCP:
+
+```python
+import maxconn
+
+for result in maxconn.scan("192.0.2.1", ports=[22, 23, 80, 443]):
+    print(result.port, "open" if result.open else "closed")
+```
+
+### HTTP e FTP
+
+HTTP/HTTPS básico:
+
+```python
+from maxconn.protocol.http import HTTPClient
+
+response = HTTPClient(timeout=5.0).get("https://example.com")
+print(response.status_code)
+print(response.text)
+```
+
+FTP básico:
+
+```python
+from maxconn.protocol.ftp import FTPClient
+
+with FTPClient.connect(
+    "192.0.2.40",
+    username="user",
+    password="secret",
+) as ftp:
+    print(ftp.list())
+    data = ftp.download("backup.cfg")
 ```
 
 ### Timeouts
@@ -294,11 +332,14 @@ Telnet does not pull extra runtime dependencies. SSH uses `cryptography` through
 the `ssh` extra. Paramiko is test-only and is used to run a local SSH server for
 integration tests.
 
-Current development version: `0.1.1`.
+Current development version: `0.1.2`.
 
 Basic CLI:
 
 ```bash
+maxconn --version
+maxconn ping 192.0.2.1
+maxconn scan 192.0.2.1 --ports 22,23,80,443
 maxconn ssh 192.0.2.10 --username admin --password secret --command "show version"
 maxconn telnet 192.0.2.20 --username admin --password secret --command "show status"
 ```
@@ -396,6 +437,41 @@ import maxconn
 
 result = maxconn.ping("192.0.2.1")
 print(result.reachable)
+```
+
+TCP scan:
+
+```python
+import maxconn
+
+for result in maxconn.scan("192.0.2.1", ports=[22, 23, 80, 443]):
+    print(result.port, "open" if result.open else "closed")
+```
+
+### HTTP and FTP
+
+Basic HTTP/HTTPS:
+
+```python
+from maxconn.protocol.http import HTTPClient
+
+response = HTTPClient(timeout=5.0).get("https://example.com")
+print(response.status_code)
+print(response.text)
+```
+
+Basic FTP:
+
+```python
+from maxconn.protocol.ftp import FTPClient
+
+with FTPClient.connect(
+    "192.0.2.40",
+    username="user",
+    password="secret",
+) as ftp:
+    print(ftp.list())
+    data = ftp.download("backup.cfg")
 ```
 
 ### Timeouts

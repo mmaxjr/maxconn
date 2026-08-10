@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+__version__ = "0.1.2"
+
 from maxconn.exceptions import (
     AuthenticationError,
     ChannelError,
@@ -9,7 +11,7 @@ from maxconn.exceptions import (
     MaxConnError,
     ProtocolError,
 )
-from maxconn.net import PingResult, ping
+from maxconn.net import PingResult, ScanResult, ping, scan
 from maxconn.sessions import SessionManager
 from maxconn.transport.base import CommandResult, Connection, Transport
 
@@ -22,9 +24,12 @@ __all__ = [
     "MaxConnError",
     "PingResult",
     "ProtocolError",
+    "ScanResult",
     "SessionManager",
+    "__version__",
     "connect",
     "ping",
+    "scan",
 ]
 
 _DEFAULT_PORTS = {"telnet": 23, "ssh": 22}
