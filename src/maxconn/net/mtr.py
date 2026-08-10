@@ -127,12 +127,14 @@ def render_mtr_table(hops: dict[int, WinMTRHop]) -> str:
     lines = ["Hostname                         Nr  Loss%  Sent  Recv  Best  Avg   Worst  Last"]
     for index in sorted(hops):
         hop = hops[index]
+        hostname = "No response from host" if hop.host == "*" else hop.host
+        loss = f"{hop.loss_percent:.0f}%"
         best = _format_ms(hop.best_ms)
         avg = _format_ms(hop.avg_ms)
         worst = _format_ms(hop.worst_ms)
         last = _format_ms(hop.last_ms)
         lines.append(
-            f"{hop.host:<32} {hop.index:<3} {hop.loss_percent:<6.0f} "
+            f"{hostname:<32} {hop.index:<3} {loss:<6} "
             f"{hop.sent:<5} {hop.received:<5} {best:<5} {avg:<5} {worst:<6} {last:<5}"
         )
     return "\n".join(lines)
@@ -140,8 +142,8 @@ def render_mtr_table(hops: dict[int, WinMTRHop]) -> str:
 
 def _format_ms(value: float | None) -> str:
     if value is None:
-        return "0"
-    return str(round(value))
+        return "0 ms"
+    return f"{round(value)} ms"
 
 
 def run_mtr_table(
