@@ -5,17 +5,50 @@ build-backend = "hatchling.build"
 [project]
 name = "maxconn"
 version = "0.1.0"
-description = "SSH and Telnet client implemented from scratch, without paramiko/netmiko/scrapli/telnetlib."
+description = "Python toolkit for network and infrastructure automation, starting with raw-socket SSH and Telnet."
+readme = "README.md"
 requires-python = ">=3.10"
+authors = [
+    { name = "Marcos Max" },
+]
+keywords = [
+    "automation",
+    "devops",
+    "infrastructure",
+    "network",
+    "ssh",
+    "telnet",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: System Administrators",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Internet",
+    "Topic :: System :: Networking",
+    "Topic :: System :: Systems Administration",
+    "Typing :: Typed",
+]
 dependencies = []
+
+[project.urls]
+Homepage = "https://github.com/mmaxjr/maxconn"
+Repository = "https://github.com/mmaxjr/maxconn"
+Issues = "https://github.com/mmaxjr/maxconn/issues"
 
 [project.optional-dependencies]
 ssh = [
     "cryptography>=42",
 ]
 dev = [
+    "build>=1.2",
     "pytest>=8.0",
     "ruff>=0.6",
+    "twine>=5.0",
     "tomli>=2; python_version < '3.11'",
     "cryptography>=42",
     # paramiko is a TEST-ONLY dependency: it powers a local SSH server used
