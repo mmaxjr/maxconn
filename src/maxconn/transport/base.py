@@ -2,10 +2,20 @@
 
 from __future__ import annotations
 
+import logging
+import re
 import time
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 
+from maxconn.automation import ExpectSession, PromptProfile
 from maxconn.exceptions import ConnectionTimeoutError
+
+_AUDIT_LOG = logging.getLogger("maxconn.audit")
+_SECRET_PATTERNS = (
+    re.compile(r"(?i)\b(password|passwd|secret|token|key)\s+\S+"),
+    re.compile(r"(?i)(--password|--passwd|--secret|--token|--key)\s+\S+"),
+)
 
 
 class Transport(ABC):
@@ -18,6 +28,7 @@ class Transport(ABC):
         username: str,
         password: str | None = None,
         pkey: object | None = None,
+        timeout: float | None = None,
     ) -> None: ...
     # `pkey`'s concrete type is transport-specific (e.g. SSHTransport
     # expects a cryptography RSAPrivateKey); transports that don't support
@@ -45,9 +56,36 @@ def read_until(transport: Transport, markers: tuple[str, ...], timeout: float) -
     raise ConnectionTimeoutError(f"Timed out waiting for markers {markers!r}; got: {buffer!r}")
 
 
+@dataclass(frozen=True)
+class CommandResult:
+    command: str
+    text: str
+    bytes: bytes
+    elapsed: float
+    exit_status: int | None = None
+
+    @property
+    def ok(self) -> bool:
+        return self.exit_status in (None, 0)
+
+
 class Connection:
-    def __init__(self, transport: Transport) -> None:
+    def __init__(
+        self,
+        transport: Transport,
+        *,
+        host: str | None = None,
+        protocol: str | None = None,
+        command_timeout: float = 5.0,
+        prompt_timeout: float = 10.0,
+        prompt_profile: PromptProfile = PromptProfile.GENERIC,
+    ) -> None:
         self._transport = transport
+        self.host = host
+        self.protocol = protocol
+        self.command_timeout = command_timeout
+        self.prompt_timeout = prompt_timeout
+        self.prompt_profile = prompt_profile
 
     def send_command(self, command: str, *, read_timeout: float = 5.0) -> str:
         self._transport.send(command + "\n")
@@ -61,6 +99,42 @@ class Connection:
                 break
             buffer += chunk.decode(errors="replace")
         return buffer
+
+    def run(
+        self,
+        command: str,
+        *,
+        prompt_markers: tuple[str, ...] | None = None,
+        timeout: float | None = None,
+        strip_echo: bool = True,
+        pagination_markers: tuple[str, ...] = ("--More--",),
+    ) -> CommandResult:
+        start = time.monotonic()
+        resolved_timeout = timeout if timeout is not None else self.command_timeout
+        resolved_markers = prompt_markers if prompt_markers is not None else self.prompt_profile.markers
+        expect = ExpectSession(
+            self,
+            prompt_markers=resolved_markers,
+            pagination_markers=pagination_markers,
+        )
+
+        text = expect.run(command, timeout=resolved_timeout, strip_echo=strip_echo)
+        elapsed = time.monotonic() - start
+        result = CommandResult(
+            command=command,
+            text=text,
+            bytes=text.encode(),
+            elapsed=elapsed,
+        )
+        _AUDIT_LOG.info(
+            "command completed host=%s protocol=%s command=%r elapsed=%.3f ok=%s",
+            self.host,
+            self.protocol,
+            _redact(command),
+            elapsed,
+            result.ok,
+        )
+        return result
 
     def send(self, data: bytes | str) -> None:
         self._transport.send(data)
@@ -79,3 +153,10 @@ class Connection:
 
     def __exit__(self, exc_type, exc, tb) -> None:
         self.close()
+
+
+def _redact(value: str) -> str:
+    redacted = value
+    for pattern in _SECRET_PATTERNS:
+        redacted = pattern.sub(lambda match: f"{match.group(1)} <redacted>", redacted)
+    return redacted

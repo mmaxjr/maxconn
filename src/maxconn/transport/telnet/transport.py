@@ -26,18 +26,21 @@ class TelnetTransport(Transport):
         username: str,
         password: str | None = None,
         pkey: object | None = None,
+        timeout: float | None = None,
     ) -> None:
         if pkey is not None:
             raise AuthenticationError("Telnet does not support public-key authentication")
 
-        self._read_until(("login:", "username:"), timeout=10.0)
+        auth_timeout = timeout if timeout is not None else 10.0
+
+        self._read_until(("login:", "username:"), timeout=auth_timeout)
         self.send(username + "\n")
 
         if password is not None:
-            self._read_until(("password:",), timeout=10.0)
+            self._read_until(("password:",), timeout=auth_timeout)
             self.send(password + "\n")
 
-        reply = self._read_until(("welcome", "incorrect", "failed", ">", "#"), timeout=10.0)
+        reply = self._read_until(("welcome", "incorrect", "failed", ">", "#"), timeout=auth_timeout)
         if "incorrect" in reply.lower() or "failed" in reply.lower():
             raise AuthenticationError(f"Telnet authentication failed for user {username!r}")
 
