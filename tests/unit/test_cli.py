@@ -53,7 +53,7 @@ def test_cli_prints_package_version(capsys):
     exit_code = maxconn.cli.main(["--version"])
 
     assert exit_code == 0
-    assert "maxconn 0.1.2" in capsys.readouterr().out
+    assert "maxconn 0.1.3" in capsys.readouterr().out
 
 
 def test_cli_prints_package_version_from_sys_argv(monkeypatch, capsys):
@@ -62,7 +62,7 @@ def test_cli_prints_package_version_from_sys_argv(monkeypatch, capsys):
     exit_code = maxconn.cli.main()
 
     assert exit_code == 0
-    assert "maxconn 0.1.2" in capsys.readouterr().out
+    assert "maxconn 0.1.3" in capsys.readouterr().out
 
 
 def test_cli_ping_prints_reachable_status(monkeypatch, capsys):
@@ -111,3 +111,93 @@ def test_cli_scan_prints_open_ports(monkeypatch, capsys):
         "timeout": 0.5,
         "concurrency": 5,
     }
+
+
+def test_cli_traceroute_prints_hops(monkeypatch, capsys):
+    class Hop:
+        hop = 1
+        address = "192.0.2.1"
+        raw = "1 192.0.2.1"
+
+    class Result:
+        returncode = 0
+        error = ""
+
+        def __init__(self):
+            self.hops = [Hop()]
+
+    monkeypatch.setattr(maxconn.cli.maxconn, "traceroute", lambda host, timeout=30.0: Result())
+
+    exit_code = maxconn.cli.main(["traceroute", "192.0.2.1", "--timeout", "5"])
+
+    assert exit_code == 0
+    assert "1 192.0.2.1" in capsys.readouterr().out
+
+
+def test_cli_mtr_prints_summary(monkeypatch, capsys):
+    class Result:
+        host = "192.0.2.1"
+        sent = 5
+        received = 4
+        loss_percent = 20.0
+        avg = 0.015
+        best = 0.010
+        worst = 0.020
+
+    monkeypatch.setattr(maxconn.cli.maxconn, "mtr", lambda host, count=5, timeout=1.0: Result())
+
+    exit_code = maxconn.cli.main(["mtr", "192.0.2.1", "--count", "5", "--timeout", "1"])
+
+    assert exit_code == 0
+    assert "loss=20.00%" in capsys.readouterr().out
+
+
+def test_cli_snmp_get_prints_value(monkeypatch, capsys):
+    class Result:
+        oid = "1.3.6.1.2.1.1.5.0"
+        value = "router-01"
+
+    class Client:
+        def __init__(self, host, community="public", port=161, timeout=2.0):
+            self.host = host
+            self.community = community
+            self.port = port
+            self.timeout = timeout
+
+        def get(self, oid):
+            return Result()
+
+    monkeypatch.setattr(maxconn.cli, "SNMPClient", Client)
+
+    exit_code = maxconn.cli.main(
+        ["snmp", "get", "192.0.2.1", "1.3.6.1.2.1.1.5.0", "--community", "private"]
+    )
+
+    assert exit_code == 0
+    assert "1.3.6.1.2.1.1.5.0 = router-01" in capsys.readouterr().out
+
+
+def test_cli_snmp_walk_prints_values(monkeypatch, capsys):
+    class Client:
+        def __init__(self, host, community="public", port=161, timeout=2.0):
+            pass
+
+        def walk(self, oid, limit=100):
+            class First:
+                oid = "1.3.6.1.2.1.1.1.0"
+                value = "description"
+
+            class Second:
+                oid = "1.3.6.1.2.1.1.5.0"
+                value = "router-01"
+
+            return [First(), Second()]
+
+    monkeypatch.setattr(maxconn.cli, "SNMPClient", Client)
+
+    exit_code = maxconn.cli.main(["snmp", "walk", "192.0.2.1", "1.3.6.1.2.1.1", "--limit", "10"])
+
+    output = capsys.readouterr().out
+    assert exit_code == 0
+    assert "description" in output
+    assert "router-01" in output

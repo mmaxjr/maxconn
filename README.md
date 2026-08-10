@@ -64,7 +64,7 @@ Telnet não puxa dependências extras. SSH usa `cryptography` pelo extra `ssh`.
 Paramiko fica só nos testes, para subir um servidor SSH local e validar o
 cliente do MAXCONN contra uma implementação independente.
 
-Versão atual em desenvolvimento: `0.1.2`.
+Versão atual em desenvolvimento: `0.1.3`.
 
 CLI básica:
 
@@ -72,6 +72,10 @@ CLI básica:
 maxconn --version
 maxconn ping 192.0.2.1
 maxconn scan 192.0.2.1 --ports 22,23,80,443
+maxconn traceroute 8.8.8.8
+maxconn mtr 8.8.8.8 --count 5
+maxconn snmp get 192.0.2.1 1.3.6.1.2.1.1.5.0 --community public
+maxconn snmp walk 192.0.2.1 1.3.6.1.2.1.1 --community public
 maxconn ssh 192.0.2.10 --username admin --password secret --command "show version"
 maxconn telnet 192.0.2.20 --username admin --password secret --command "show status"
 ```
@@ -180,6 +184,19 @@ for result in maxconn.scan("192.0.2.1", ports=[22, 23, 80, 443]):
     print(result.port, "open" if result.open else "closed")
 ```
 
+Traceroute e mini MTR:
+
+```python
+import maxconn
+
+trace = maxconn.traceroute("8.8.8.8")
+for hop in trace.hops:
+    print(hop.hop, hop.address)
+
+report = maxconn.mtr("8.8.8.8", count=5)
+print(report.loss_percent, report.avg)
+```
+
 ### HTTP e FTP
 
 HTTP/HTTPS básico:
@@ -204,6 +221,19 @@ with FTPClient.connect(
 ) as ftp:
     print(ftp.list())
     data = ftp.download("backup.cfg")
+```
+
+SNMP v2c básico:
+
+```python
+from maxconn.protocol.snmp import SNMPClient
+
+snmp = SNMPClient("192.0.2.1", community="public")
+hostname = snmp.get("1.3.6.1.2.1.1.5.0")
+print(hostname.value)
+
+for item in snmp.walk("1.3.6.1.2.1.1"):
+    print(item.oid, item.value)
 ```
 
 ### Timeouts
@@ -332,7 +362,7 @@ Telnet does not pull extra runtime dependencies. SSH uses `cryptography` through
 the `ssh` extra. Paramiko is test-only and is used to run a local SSH server for
 integration tests.
 
-Current development version: `0.1.2`.
+Current development version: `0.1.3`.
 
 Basic CLI:
 
@@ -340,6 +370,10 @@ Basic CLI:
 maxconn --version
 maxconn ping 192.0.2.1
 maxconn scan 192.0.2.1 --ports 22,23,80,443
+maxconn traceroute 8.8.8.8
+maxconn mtr 8.8.8.8 --count 5
+maxconn snmp get 192.0.2.1 1.3.6.1.2.1.1.5.0 --community public
+maxconn snmp walk 192.0.2.1 1.3.6.1.2.1.1 --community public
 maxconn ssh 192.0.2.10 --username admin --password secret --command "show version"
 maxconn telnet 192.0.2.20 --username admin --password secret --command "show status"
 ```
@@ -448,6 +482,19 @@ for result in maxconn.scan("192.0.2.1", ports=[22, 23, 80, 443]):
     print(result.port, "open" if result.open else "closed")
 ```
 
+Traceroute and mini MTR:
+
+```python
+import maxconn
+
+trace = maxconn.traceroute("8.8.8.8")
+for hop in trace.hops:
+    print(hop.hop, hop.address)
+
+report = maxconn.mtr("8.8.8.8", count=5)
+print(report.loss_percent, report.avg)
+```
+
 ### HTTP and FTP
 
 Basic HTTP/HTTPS:
@@ -472,6 +519,19 @@ with FTPClient.connect(
 ) as ftp:
     print(ftp.list())
     data = ftp.download("backup.cfg")
+```
+
+Basic SNMP v2c:
+
+```python
+from maxconn.protocol.snmp import SNMPClient
+
+snmp = SNMPClient("192.0.2.1", community="public")
+hostname = snmp.get("1.3.6.1.2.1.1.5.0")
+print(hostname.value)
+
+for item in snmp.walk("1.3.6.1.2.1.1"):
+    print(item.oid, item.value)
 ```
 
 ### Timeouts
