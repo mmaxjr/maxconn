@@ -3,6 +3,7 @@
 [![PyPI](https://img.shields.io/pypi/v/maxconn.svg)](https://pypi.org/project/maxconn/)
 [![Python](https://img.shields.io/pypi/pyversions/maxconn.svg)](https://pypi.org/project/maxconn/)
 [![CI](https://github.com/mmaxjr/maxconn/actions/workflows/ci.yml/badge.svg)](https://github.com/mmaxjr/maxconn/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 ## Português
 
@@ -63,7 +64,14 @@ Telnet não puxa dependências extras. SSH usa `cryptography` pelo extra `ssh`.
 Paramiko fica só nos testes, para subir um servidor SSH local e validar o
 cliente do MAXCONN contra uma implementação independente.
 
-Versão atual publicada: `0.1.0`.
+Versão atual em desenvolvimento: `0.1.1`.
+
+CLI básica:
+
+```bash
+maxconn ssh 192.0.2.10 --username admin --password secret --command "show version"
+maxconn telnet 192.0.2.20 --username admin --password secret --command "show status"
+```
 
 ### Uso Básico
 
@@ -136,6 +144,29 @@ output = expect.run("show running-config", timeout=20.0)
 - remove eco do comando
 - responde paginação simples, como `--More--`
 - inclui a saída parcial quando ocorre timeout
+- responde confirmações simples, como `[Y/N]`
+
+### Sessões e Ping
+
+`SessionManager` controla conexões nomeadas:
+
+```python
+import maxconn
+
+manager = maxconn.SessionManager(defaults={"protocol": "ssh", "username": "admin"})
+conn = manager.connect("olt-01", "192.0.2.10", password="secret")
+result = conn.run("display version", prompt_markers=(">", "#"))
+manager.close_all()
+```
+
+Ping básico:
+
+```python
+import maxconn
+
+result = maxconn.ping("192.0.2.1")
+print(result.reachable)
+```
 
 ### Timeouts
 
@@ -263,7 +294,14 @@ Telnet does not pull extra runtime dependencies. SSH uses `cryptography` through
 the `ssh` extra. Paramiko is test-only and is used to run a local SSH server for
 integration tests.
 
-Current published version: `0.1.0`.
+Current development version: `0.1.1`.
+
+Basic CLI:
+
+```bash
+maxconn ssh 192.0.2.10 --username admin --password secret --command "show version"
+maxconn telnet 192.0.2.20 --username admin --password secret --command "show status"
+```
 
 ### Basic Usage
 
@@ -336,6 +374,29 @@ output = expect.run("show running-config", timeout=20.0)
 - strips command echo
 - answers simple pagination markers such as `--More--`
 - includes partial output in timeout errors
+- answers simple confirmation prompts such as `[Y/N]`
+
+### Sessions and Ping
+
+`SessionManager` controls named connections:
+
+```python
+import maxconn
+
+manager = maxconn.SessionManager(defaults={"protocol": "ssh", "username": "admin"})
+conn = manager.connect("olt-01", "192.0.2.10", password="secret")
+result = conn.run("display version", prompt_markers=(">", "#"))
+manager.close_all()
+```
+
+Basic ping:
+
+```python
+import maxconn
+
+result = maxconn.ping("192.0.2.1")
+print(result.reachable)
+```
 
 ### Timeouts
 
