@@ -42,6 +42,24 @@ class WinMTRHop:
             return None
         return round((sum(self.times) / len(self.times)) * 1000, 2)
 
+    @property
+    def best_ms(self) -> float | None:
+        if not self.times:
+            return None
+        return round(min(self.times) * 1000, 2)
+
+    @property
+    def worst_ms(self) -> float | None:
+        if not self.times:
+            return None
+        return round(max(self.times) * 1000, 2)
+
+    @property
+    def last_ms(self) -> float | None:
+        if not self.times:
+            return None
+        return round(self.times[-1] * 1000, 2)
+
 
 def mtr(host: str, *, count: int = 10, timeout: float = 1.0) -> MTRResult:
     if count < 1:
@@ -76,8 +94,14 @@ def mtr(host: str, *, count: int = 10, timeout: float = 1.0) -> MTRResult:
     )
 
 
-def probe_mtr_once(host: str, hops: dict[int, WinMTRHop], *, timeout: float = 1.0) -> None:
-    trace = traceroute(host, timeout=max(timeout, 1.0))
+def probe_mtr_once(
+    host: str,
+    hops: dict[int, WinMTRHop],
+    *,
+    timeout: float = 1.0,
+    trace_timeout: float = 30.0,
+) -> None:
+    trace = traceroute(host, timeout=trace_timeout)
     targets = trace.hops or []
     if not targets:
         targets = [type("_Hop", (), {"hop": 1, "address": host})()]
@@ -90,6 +114,8 @@ def probe_mtr_once(host: str, hops: dict[int, WinMTRHop], *, timeout: float = 1.
             WinMTRHop(index=trace_hop.hop, host=trace_hop.address),
         )
         current.sent += 1
+        if current.host == "*":
+            continue
         result = ping(current.host, timeout=timeout, count=1)
         if result.returncode == 0:
             current.received += 1
@@ -98,12 +124,24 @@ def probe_mtr_once(host: str, hops: dict[int, WinMTRHop], *, timeout: float = 1.
 
 
 def render_mtr_table(hops: dict[int, WinMTRHop]) -> str:
-    lines = ["#  Loss%  Sent  Avg  Host"]
+    lines = ["Hostname                         Nr  Loss%  Sent  Recv  Best  Avg   Worst  Last"]
     for index in sorted(hops):
         hop = hops[index]
-        avg = "*" if hop.avg_ms is None else f"{hop.avg_ms:.0f}ms"
-        lines.append(f"{hop.index:<2} {hop.loss_percent:.0f}%    {hop.sent:<5} {avg:<5} {hop.host}")
+        best = _format_ms(hop.best_ms)
+        avg = _format_ms(hop.avg_ms)
+        worst = _format_ms(hop.worst_ms)
+        last = _format_ms(hop.last_ms)
+        lines.append(
+            f"{hop.host:<32} {hop.index:<3} {hop.loss_percent:<6.0f} "
+            f"{hop.sent:<5} {hop.received:<5} {best:<5} {avg:<5} {worst:<6} {last:<5}"
+        )
     return "\n".join(lines)
+
+
+def _format_ms(value: float | None) -> str:
+    if value is None:
+        return "0"
+    return str(round(value))
 
 
 def run_mtr_table(
@@ -111,12 +149,13 @@ def run_mtr_table(
     *,
     count: int | None = None,
     timeout: float = 1.0,
+    trace_timeout: float = 30.0,
     interval: float = 1.0,
 ) -> str:
     hops: dict[int, WinMTRHop] = {}
     rounds = 0
     while count is None or rounds < count:
-        probe_mtr_once(host, hops, timeout=timeout)
+        probe_mtr_once(host, hops, timeout=timeout, trace_timeout=trace_timeout)
         rounds += 1
         if count is None:
             print("\033[2J\033[H" + render_mtr_table(hops), flush=True)

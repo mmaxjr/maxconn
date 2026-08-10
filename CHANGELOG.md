@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.5 - 2026-08-10
+
+- Keep timed-out traceroute hops in `maxconn mtr` output instead of hiding them.
+- Avoid pinging `*` placeholder hops.
+- Improve WinMTR-style path display when intermediate routers do not answer.
+
 ## 0.1.4 - 2026-08-10
 
 - Change `maxconn mtr HOST` to run continuously by default.
