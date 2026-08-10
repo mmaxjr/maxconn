@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.6 - 2026-08-10
+
+- Polish `maxconn mtr` output for silent hops.
+- Show `No response from host` instead of the internal `*` marker.
+- Render loss and latency values with clearer `%` and `ms` units.
+
 ## 0.1.5 - 2026-08-10
 
 - Keep timed-out traceroute hops in `maxconn mtr` output instead of hiding them.

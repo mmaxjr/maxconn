@@ -212,3 +212,18 @@ def test_render_mtr_table_matches_winmtr_style_columns():
     assert "20" in table
     assert "15" in table
     assert "8.8.8.8" in table
+
+
+def test_render_mtr_table_displays_silent_hops_like_winmtr():
+    hops = {
+        1: WinMTRHop(index=1, host="192.168.18.1", sent=4, received=4, times=[0.015]),
+        2: WinMTRHop(index=2, host="*", sent=4, received=0),
+    }
+
+    table = render_mtr_table(hops)
+
+    assert "*" not in table
+    assert "No response from host" in table
+    assert "100%" in table
+    assert "4" in table
+    assert "0 ms" in table
