@@ -4,6 +4,7 @@ import argparse
 import sys
 
 import maxconn
+from maxconn.protocol.snmp import SNMPClient
 
 
 def _parse_ports(raw: str) -> list[int]:
@@ -36,6 +37,27 @@ def main(argv: list[str] | None = None) -> int:
     scan_command.add_argument("--timeout", type=float, default=1.0)
     scan_command.add_argument("--concurrency", type=int, default=100)
 
+    traceroute_command = subparsers.add_parser("traceroute")
+    traceroute_command.add_argument("host")
+    traceroute_command.add_argument("--timeout", type=float, default=30.0)
+
+    mtr_command = subparsers.add_parser("mtr")
+    mtr_command.add_argument("host")
+    mtr_command.add_argument("--count", type=int, default=10)
+    mtr_command.add_argument("--timeout", type=float, default=1.0)
+
+    snmp_command = subparsers.add_parser("snmp")
+    snmp_subcommands = snmp_command.add_subparsers(dest="snmp_action", required=True)
+    for action in ("get", "walk"):
+        snmp_action = snmp_subcommands.add_parser(action)
+        snmp_action.add_argument("host")
+        snmp_action.add_argument("oid")
+        snmp_action.add_argument("--community", default="public")
+        snmp_action.add_argument("--port", type=int, default=161)
+        snmp_action.add_argument("--timeout", type=float, default=2.0)
+        if action == "walk":
+            snmp_action.add_argument("--limit", type=int, default=100)
+
     if resolved_argv == ["--version"]:
         print(f"maxconn {maxconn.__version__}")
         return 0
@@ -60,6 +82,40 @@ def main(argv: list[str] | None = None) -> int:
             status = "open" if result.open else "closed"
             print(f"{result.port} {status} ({result.elapsed:.3f}s)")
         return 0 if any(result.open for result in results) else 1
+
+    if args.protocol == "traceroute":
+        result = maxconn.traceroute(args.host, timeout=args.timeout)
+        for hop in result.hops:
+            print(f"{hop.hop} {hop.address}")
+        if result.error:
+            print(result.error)
+        return 0 if result.returncode == 0 else 1
+
+    if args.protocol == "mtr":
+        result = maxconn.mtr(args.host, count=args.count, timeout=args.timeout)
+        avg = "n/a" if result.avg is None else f"{result.avg:.3f}s"
+        best = "n/a" if result.best is None else f"{result.best:.3f}s"
+        worst = "n/a" if result.worst is None else f"{result.worst:.3f}s"
+        print(
+            f"{result.host} sent={result.sent} received={result.received} "
+            f"loss={result.loss_percent:.2f}% best={best} avg={avg} worst={worst}"
+        )
+        return 0 if result.received else 1
+
+    if args.protocol == "snmp":
+        client = SNMPClient(
+            args.host,
+            community=args.community,
+            port=args.port,
+            timeout=args.timeout,
+        )
+        if args.snmp_action == "get":
+            result = client.get(args.oid)
+            print(f"{result.oid} = {result.value}")
+            return 0
+        for result in client.walk(args.oid, limit=args.limit):
+            print(f"{result.oid} = {result.value}")
+        return 0
 
     prompt_markers = tuple(args.prompt) if args.prompt else (">", "#")
     with maxconn.connect(

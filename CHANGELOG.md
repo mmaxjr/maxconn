@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.3 - 2026-08-10
+
+- Add `maxconn traceroute` using the platform traceroute command.
+- Add `maxconn mtr` as a small repeated-ping report.
+- Add dependency-free SNMP v2c `get`, `getnext`, and `walk`.
+- Add `maxconn snmp get` and `maxconn snmp walk` CLI commands.
+- Add README examples for traceroute, MTR, and SNMP.
+
 ## 0.1.2 - 2026-08-10
 
 - Add `maxconn --version`.
