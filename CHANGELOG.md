@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.4 - 2026-08-10
+
+- Change `maxconn mtr HOST` to run continuously by default.
+- Add WinMTR-style hop table for `maxconn mtr`.
+- Keep bounded runs available through `maxconn mtr HOST --count N`.
+- Add `--interval` for MTR refresh timing.
+
 ## 0.1.3 - 2026-08-10
 
 - Add `maxconn traceroute` using the platform traceroute command.

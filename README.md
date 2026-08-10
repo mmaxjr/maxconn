@@ -64,7 +64,7 @@ Telnet não puxa dependências extras. SSH usa `cryptography` pelo extra `ssh`.
 Paramiko fica só nos testes, para subir um servidor SSH local e validar o
 cliente do MAXCONN contra uma implementação independente.
 
-Versão atual em desenvolvimento: `0.1.3`.
+Versão atual em desenvolvimento: `0.1.4`.
 
 CLI básica:
 
@@ -73,7 +73,8 @@ maxconn --version
 maxconn ping 192.0.2.1
 maxconn scan 192.0.2.1 --ports 22,23,80,443
 maxconn traceroute 8.8.8.8
-maxconn mtr 8.8.8.8 --count 5
+maxconn mtr 8.8.8.8
+maxconn mtr 8.8.8.8 --count 5 --interval 1
 maxconn snmp get 192.0.2.1 1.3.6.1.2.1.1.5.0 --community public
 maxconn snmp walk 192.0.2.1 1.3.6.1.2.1.1 --community public
 maxconn ssh 192.0.2.10 --username admin --password secret --command "show version"
@@ -196,6 +197,9 @@ for hop in trace.hops:
 report = maxconn.mtr("8.8.8.8", count=5)
 print(report.loss_percent, report.avg)
 ```
+
+No terminal, `maxconn mtr HOST` roda continuamente e atualiza uma tabela por
+hop. Use `Ctrl+C` para parar. Para uma execução limitada, informe `--count`.
 
 ### HTTP e FTP
 
@@ -362,7 +366,7 @@ Telnet does not pull extra runtime dependencies. SSH uses `cryptography` through
 the `ssh` extra. Paramiko is test-only and is used to run a local SSH server for
 integration tests.
 
-Current development version: `0.1.3`.
+Current development version: `0.1.4`.
 
 Basic CLI:
 
@@ -371,7 +375,8 @@ maxconn --version
 maxconn ping 192.0.2.1
 maxconn scan 192.0.2.1 --ports 22,23,80,443
 maxconn traceroute 8.8.8.8
-maxconn mtr 8.8.8.8 --count 5
+maxconn mtr 8.8.8.8
+maxconn mtr 8.8.8.8 --count 5 --interval 1
 maxconn snmp get 192.0.2.1 1.3.6.1.2.1.1.5.0 --community public
 maxconn snmp walk 192.0.2.1 1.3.6.1.2.1.1 --community public
 maxconn ssh 192.0.2.10 --username admin --password secret --command "show version"
@@ -494,6 +499,9 @@ for hop in trace.hops:
 report = maxconn.mtr("8.8.8.8", count=5)
 print(report.loss_percent, report.avg)
 ```
+
+In the terminal, `maxconn mtr HOST` runs continuously and refreshes a table per
+hop. Stop it with `Ctrl+C`. For a bounded run, pass `--count`.
 
 ### HTTP and FTP
 
