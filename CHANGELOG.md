@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.1.2 - 2026-08-10
+
+- Add `maxconn --version`.
+- Add `maxconn ping` and `maxconn scan` CLI commands.
+- Add from-scratch TCP port scanner in `maxconn.net.scan`.
+- Add basic dependency-free HTTP/HTTPS client in `maxconn.protocol.http`.
+- Add basic passive-mode FTP client in `maxconn.protocol.ftp`.
+- Refresh README examples for CLI, scan, HTTP, and FTP.
+
 ## 0.1.1 - 2026-08-10
 
 - Add `SessionManager` for named connection lifecycle control.
