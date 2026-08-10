@@ -4,10 +4,11 @@ build-backend = "hatchling.build"
 
 [project]
 name = "maxconn"
-version = "0.1.0"
+version = "0.1.1"
 description = "Python toolkit for network and infrastructure automation, starting with raw-socket SSH and Telnet."
 readme = "README.md"
 requires-python = ">=3.10"
+license = "MIT"
 authors = [
     { name = "Marcos Max" },
 ]
@@ -23,6 +24,7 @@ classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
     "Intended Audience :: System Administrators",
+    "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.10",
@@ -35,7 +37,11 @@ classifiers = [
 ]
 dependencies = []
 
+[project.scripts]
+maxconn = "maxconn.cli:main"
+
 [project.urls]
+Changelog = "https://github.com/mmaxjr/maxconn/blob/main/CHANGELOG.md"
 Homepage = "https://github.com/mmaxjr/maxconn"
 Repository = "https://github.com/mmaxjr/maxconn"
 Issues = "https://github.com/mmaxjr/maxconn/issues"

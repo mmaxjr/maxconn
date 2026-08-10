@@ -9,6 +9,8 @@ from maxconn.exceptions import (
     MaxConnError,
     ProtocolError,
 )
+from maxconn.net import PingResult, ping
+from maxconn.sessions import SessionManager
 from maxconn.transport.base import CommandResult, Connection, Transport
 
 __all__ = [
@@ -18,8 +20,11 @@ __all__ = [
     "Connection",
     "ConnectionTimeoutError",
     "MaxConnError",
+    "PingResult",
     "ProtocolError",
+    "SessionManager",
     "connect",
+    "ping",
 ]
 
 _DEFAULT_PORTS = {"telnet": 23, "ssh": 22}

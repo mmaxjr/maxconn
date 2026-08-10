@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import time
+from dataclasses import dataclass
 from enum import Enum
 from typing import Protocol
 
@@ -25,6 +26,12 @@ class ExpectConnection(Protocol):
     def recv(self, timeout: float | None = None) -> bytes: ...
 
 
+@dataclass(frozen=True)
+class ExpectMatch:
+    marker: str
+    output: str
+
+
 class ExpectSession:
     def __init__(
         self,
@@ -39,33 +46,54 @@ class ExpectSession:
         )
         self._pagination_markers = pagination_markers
 
-    def run(self, command: str, *, timeout: float = 10.0, strip_echo: bool = False) -> str:
+    def run(
+        self,
+        command: str,
+        *,
+        timeout: float = 10.0,
+        strip_echo: bool = False,
+        confirmations: dict[str, str] | None = None,
+    ) -> str:
         self._connection.send(command + "\n")
-        output = self._read_until_prompt(timeout)
+        output = self._read_until_prompt(timeout, confirmations=confirmations or {})
         if strip_echo:
             output = self._strip_command_echo(output, command)
         return output
 
-    def _read_until_prompt(self, timeout: float) -> str:
+    def wait_for(self, markers: tuple[str, ...], *, timeout: float = 10.0) -> ExpectMatch:
+        output = self._read_until(markers, timeout=timeout, confirmations={})
+        marker = next(marker for marker in markers if marker in output)
+        return ExpectMatch(marker=marker, output=output)
+
+    def _read_until_prompt(self, timeout: float, *, confirmations: dict[str, str]) -> str:
+        return self._read_until(self._prompt_markers, timeout=timeout, confirmations=confirmations)
+
+    def _read_until(
+        self,
+        markers: tuple[str, ...],
+        *,
+        timeout: float,
+        confirmations: dict[str, str],
+    ) -> str:
         deadline = time.monotonic() + timeout
         buffer = ""
+        answered_confirmations: set[str] = set()
         while time.monotonic() < deadline:
             remaining = deadline - time.monotonic()
             try:
                 chunk = self._connection.recv(timeout=max(remaining, 0.01))
             except ConnectionTimeoutError as exc:
                 raise ConnectionTimeoutError(
-                    f"Timed out waiting for prompt {self._prompt_markers!r}; got: {buffer!r}"
+                    f"Timed out waiting for prompt {markers!r}; got: {buffer!r}"
                 ) from exc
 
             buffer += chunk.decode(errors="replace")
             buffer = self._answer_pagination(buffer)
-            if any(marker in buffer for marker in self._prompt_markers):
+            self._answer_confirmations(buffer, confirmations, answered_confirmations)
+            if any(marker in buffer for marker in markers):
                 return buffer
 
-        raise ConnectionTimeoutError(
-            f"Timed out waiting for prompt {self._prompt_markers!r}; got: {buffer!r}"
-        )
+        raise ConnectionTimeoutError(f"Timed out waiting for prompt {markers!r}; got: {buffer!r}")
 
     def _answer_pagination(self, buffer: str) -> str:
         for marker in self._pagination_markers:
@@ -73,6 +101,17 @@ class ExpectSession:
                 self._connection.send(" ")
                 buffer = buffer.replace(marker, "")
         return buffer
+
+    def _answer_confirmations(
+        self,
+        buffer: str,
+        confirmations: dict[str, str],
+        answered: set[str],
+    ) -> None:
+        for marker, answer in confirmations.items():
+            if marker in buffer and marker not in answered:
+                self._connection.send(answer)
+                answered.add(marker)
 
     @staticmethod
     def _strip_command_echo(output: str, command: str) -> str:
