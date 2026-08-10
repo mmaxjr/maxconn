@@ -64,7 +64,7 @@ Telnet não puxa dependências extras. SSH usa `cryptography` pelo extra `ssh`.
 Paramiko fica só nos testes, para subir um servidor SSH local e validar o
 cliente do MAXCONN contra uma implementação independente.
 
-Versão atual em desenvolvimento: `0.1.4`.
+Versão atual em desenvolvimento: `0.1.5`.
 
 CLI básica:
 
@@ -200,6 +200,8 @@ print(report.loss_percent, report.avg)
 
 No terminal, `maxconn mtr HOST` roda continuamente e atualiza uma tabela por
 hop. Use `Ctrl+C` para parar. Para uma execução limitada, informe `--count`.
+Saltos que não respondem aparecem como `*`, para preservar o caminho.
+Em redes com muitos saltos silenciosos, aumente `--trace-timeout`.
 
 ### HTTP e FTP
 
@@ -366,7 +368,7 @@ Telnet does not pull extra runtime dependencies. SSH uses `cryptography` through
 the `ssh` extra. Paramiko is test-only and is used to run a local SSH server for
 integration tests.
 
-Current development version: `0.1.4`.
+Current development version: `0.1.5`.
 
 Basic CLI:
 
@@ -501,7 +503,9 @@ print(report.loss_percent, report.avg)
 ```
 
 In the terminal, `maxconn mtr HOST` runs continuously and refreshes a table per
-hop. Stop it with `Ctrl+C`. For a bounded run, pass `--count`.
+hop. Stop it with `Ctrl+C`. For a bounded run, pass `--count`. Hops that do not
+answer are kept as `*`, so the path is not hidden.
+On networks with many silent hops, increase `--trace-timeout`.
 
 ### HTTP and FTP
 

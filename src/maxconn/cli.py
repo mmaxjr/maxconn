@@ -46,6 +46,7 @@ def main(argv: list[str] | None = None) -> int:
     mtr_command.add_argument("host")
     mtr_command.add_argument("--count", type=int, default=None)
     mtr_command.add_argument("--timeout", type=float, default=1.0)
+    mtr_command.add_argument("--trace-timeout", type=float, default=30.0)
     mtr_command.add_argument("--interval", type=float, default=1.0)
 
     snmp_command = subparsers.add_parser("snmp")
@@ -99,6 +100,7 @@ def main(argv: list[str] | None = None) -> int:
                 args.host,
                 count=args.count,
                 timeout=args.timeout,
+                trace_timeout=args.trace_timeout,
                 interval=args.interval,
             )
         except KeyboardInterrupt:
