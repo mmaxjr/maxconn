@@ -1,5 +1,9 @@
 # MAXCONN
 
+[![PyPI](https://img.shields.io/pypi/v/maxconn.svg)](https://pypi.org/project/maxconn/)
+[![Python](https://img.shields.io/pypi/pyversions/maxconn.svg)](https://pypi.org/project/maxconn/)
+[![CI](https://github.com/mmaxjr/maxconn/actions/workflows/ci.yml/badge.svg)](https://github.com/mmaxjr/maxconn/actions/workflows/ci.yml)
+
 ## Português
 
 Projeto criado por Marcos Max para ser uma biblioteca Python voltada a redes e
@@ -13,6 +17,8 @@ validação, inventário e, mais adiante, módulos específicos para fornecedore
 O início do projeto é a camada de conexão. Hoje o MAXCONN já tem cliente SSH e
 Telnet feitos sobre sockets, sem usar Paramiko, Netmiko, Scrapli ou Telnetlib
 como cliente em runtime.
+
+Pacote no PyPI: https://pypi.org/project/maxconn/
 
 Exemplo:
 
@@ -41,7 +47,7 @@ pytest -v
 ruff check src tests
 ```
 
-Instalação futura para uso normal:
+Instalação para uso normal:
 
 ```bash
 pip install maxconn
@@ -56,6 +62,8 @@ pip install "maxconn[ssh]"
 Telnet não puxa dependências extras. SSH usa `cryptography` pelo extra `ssh`.
 Paramiko fica só nos testes, para subir um servidor SSH local e validar o
 cliente do MAXCONN contra uma implementação independente.
+
+Versão atual publicada: `0.1.0`.
 
 ### Uso Básico
 
@@ -194,6 +202,7 @@ except maxconn.MaxConnError as exc:
 - Deixar bytes crus disponíveis para quem precisa.
 - Dar uma API simples para o caso comum.
 - Testar com servidores locais de Telnet e SSH sempre que fizer sentido.
+- Publicar novas versões no PyPI por tag, usando GitHub Actions e Trusted Publishing.
 
 ## English
 
@@ -208,6 +217,8 @@ and later adding vendor-specific modules.
 The project starts with the connection layer. Today MAXCONN has SSH and Telnet
 clients built on top of sockets, without using Paramiko, Netmiko, Scrapli, or
 Telnetlib as runtime clients.
+
+Package on PyPI: https://pypi.org/project/maxconn/
 
 Example:
 
@@ -236,7 +247,7 @@ pytest -v
 ruff check src tests
 ```
 
-Future regular install:
+Regular install:
 
 ```bash
 pip install maxconn
@@ -251,6 +262,8 @@ pip install "maxconn[ssh]"
 Telnet does not pull extra runtime dependencies. SSH uses `cryptography` through
 the `ssh` extra. Paramiko is test-only and is used to run a local SSH server for
 integration tests.
+
+Current published version: `0.1.0`.
 
 ### Basic Usage
 
@@ -389,3 +402,4 @@ except maxconn.MaxConnError as exc:
 - Keep raw bytes available for code that needs them.
 - Keep the common API simple.
 - Test against local Telnet and SSH servers when it makes sense.
+- Publish new versions to PyPI by tag, using GitHub Actions and Trusted Publishing.
