@@ -3,9 +3,20 @@
 from __future__ import annotations
 
 import time
+from enum import Enum
 from typing import Protocol
 
 from maxconn.exceptions import ConnectionTimeoutError
+
+
+class PromptProfile(Enum):
+    GENERIC = ("generic", (">", "#"))
+    CISCO = ("cisco", (">", "#"))
+    HUAWEI = ("huawei", ("<", ">", "]"))
+
+    @property
+    def markers(self) -> tuple[str, ...]:
+        return self.value[1]
 
 
 class ExpectConnection(Protocol):
@@ -19,11 +30,13 @@ class ExpectSession:
         self,
         connection: ExpectConnection,
         *,
-        prompt_markers: tuple[str, ...],
+        prompt_markers: tuple[str, ...] | PromptProfile,
         pagination_markers: tuple[str, ...] = (),
     ) -> None:
         self._connection = connection
-        self._prompt_markers = prompt_markers
+        self._prompt_markers = (
+            prompt_markers.markers if isinstance(prompt_markers, PromptProfile) else prompt_markers
+        )
         self._pagination_markers = pagination_markers
 
     def run(self, command: str, *, timeout: float = 10.0, strip_echo: bool = False) -> str:

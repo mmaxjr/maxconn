@@ -42,9 +42,12 @@ class SSHTransport(Transport):
         username: str,
         password: str | None = None,
         pkey: object | None = None,
+        timeout: float | None = None,
     ) -> None:
         if self._session is None:
             raise ProtocolError("Cannot authenticate: not connected")
+        if self._sock is not None and timeout is not None:
+            self._sock.settimeout(timeout)
 
         request_userauth_service(self._session)
 

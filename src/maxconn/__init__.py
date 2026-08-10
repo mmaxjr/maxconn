@@ -9,11 +9,12 @@ from maxconn.exceptions import (
     MaxConnError,
     ProtocolError,
 )
-from maxconn.transport.base import Connection, Transport
+from maxconn.transport.base import CommandResult, Connection, Transport
 
 __all__ = [
     "AuthenticationError",
     "ChannelError",
+    "CommandResult",
     "Connection",
     "ConnectionTimeoutError",
     "MaxConnError",
@@ -33,6 +34,10 @@ def connect(
     pkey: object | None = None,
     port: int | None = None,
     timeout: float = 10.0,
+    connect_timeout: float | None = None,
+    auth_timeout: float | None = None,
+    command_timeout: float = 5.0,
+    prompt_timeout: float = 10.0,
 ) -> Connection:
     # Imported per-protocol, not at module load, so using one transport
     # never pulls in the other's dependencies (see the "import only what
@@ -50,6 +55,14 @@ def connect(
         raise ValueError(f"Unsupported protocol: {protocol!r}. Supported: 'telnet', 'ssh'")
 
     resolved_port = port if port is not None else _DEFAULT_PORTS[protocol]
-    transport.connect(host, resolved_port, timeout)
-    transport.authenticate(username, password=password, pkey=pkey)
-    return Connection(transport)
+    resolved_connect_timeout = connect_timeout if connect_timeout is not None else timeout
+    resolved_auth_timeout = auth_timeout if auth_timeout is not None else timeout
+    transport.connect(host, resolved_port, resolved_connect_timeout)
+    transport.authenticate(username, password=password, pkey=pkey, timeout=resolved_auth_timeout)
+    return Connection(
+        transport,
+        host=host,
+        protocol=protocol,
+        command_timeout=command_timeout,
+        prompt_timeout=prompt_timeout,
+    )
