@@ -47,7 +47,27 @@ def main(argv: list[str] | None = None) -> int:
     mtr_command.add_argument("--count", type=int, default=None)
     mtr_command.add_argument("--timeout", type=float, default=1.0)
     mtr_command.add_argument("--trace-timeout", type=float, default=30.0)
+    mtr_command.add_argument("--rediscover-every", type=int, default=None)
     mtr_command.add_argument("--interval", type=float, default=1.0)
+
+    sftp_command = subparsers.add_parser("sftp")
+    sftp_subcommands = sftp_command.add_subparsers(dest="sftp_action", required=True)
+    sftp_ls = sftp_subcommands.add_parser("ls")
+    sftp_ls.add_argument("host")
+    sftp_ls.add_argument("remote_path")
+    sftp_get = sftp_subcommands.add_parser("get")
+    sftp_get.add_argument("host")
+    sftp_get.add_argument("remote_path")
+    sftp_get.add_argument("local_path")
+    sftp_put = sftp_subcommands.add_parser("put")
+    sftp_put.add_argument("host")
+    sftp_put.add_argument("local_path")
+    sftp_put.add_argument("remote_path")
+    for sftp_action in (sftp_ls, sftp_get, sftp_put):
+        sftp_action.add_argument("--username", required=True)
+        sftp_action.add_argument("--password")
+        sftp_action.add_argument("--port", type=int, default=22)
+        sftp_action.add_argument("--timeout", type=float, default=10.0)
 
     snmp_command = subparsers.add_parser("snmp")
     snmp_subcommands = snmp_command.add_subparsers(dest="snmp_action", required=True)
@@ -101,6 +121,7 @@ def main(argv: list[str] | None = None) -> int:
                 count=args.count,
                 timeout=args.timeout,
                 trace_timeout=args.trace_timeout,
+                rediscover_every=args.rediscover_every,
                 interval=args.interval,
             )
         except KeyboardInterrupt:
@@ -108,6 +129,26 @@ def main(argv: list[str] | None = None) -> int:
             return 0
         if args.count is not None:
             print(table)
+        return 0
+
+    if args.protocol == "sftp":
+        client = maxconn.connect_sftp(
+            args.host,
+            username=args.username,
+            password=args.password,
+            port=args.port,
+            timeout=args.timeout,
+        )
+        try:
+            if args.sftp_action == "ls":
+                for name in client.listdir(args.remote_path):
+                    print(name)
+            elif args.sftp_action == "get":
+                client.download(args.remote_path, args.local_path)
+            elif args.sftp_action == "put":
+                client.upload(args.local_path, args.remote_path)
+        finally:
+            client.close()
         return 0
 
     if args.protocol == "snmp":

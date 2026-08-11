@@ -3,7 +3,7 @@ from __future__ import annotations
 import subprocess
 from importlib import import_module
 
-from maxconn.net.mtr import WinMTRHop, mtr, probe_mtr_once, render_mtr_table
+from maxconn.net.mtr import WinMTRHop, mtr, probe_mtr_once, render_mtr_table, run_mtr_table
 from maxconn.net.traceroute import traceroute
 
 
@@ -227,3 +227,72 @@ def test_render_mtr_table_displays_silent_hops_like_winmtr():
     assert "100%" in table
     assert "4" in table
     assert "0 ms" in table
+
+
+def test_run_mtr_table_discovers_route_once_then_updates_known_hops(monkeypatch):
+    class FirstHop:
+        hop = 1
+        address = "192.168.18.1"
+
+    class SecondHop:
+        hop = 2
+        address = "8.8.8.8"
+
+    class Trace:
+        def __init__(self):
+            self.hops = [FirstHop(), SecondHop()]
+
+    trace_calls = []
+    pinged_hosts = []
+
+    def fake_traceroute(host, timeout=30.0):
+        trace_calls.append(host)
+        return Trace()
+
+    def fake_ping(host, timeout=1.0, count=1):
+        pinged_hosts.append(host)
+
+        class Result:
+            returncode = 0
+            elapsed = 0.010
+
+        return Result()
+
+    monkeypatch.setattr(import_module("maxconn.net.mtr"), "traceroute", fake_traceroute)
+    monkeypatch.setattr(import_module("maxconn.net.mtr"), "ping", fake_ping)
+
+    table = run_mtr_table("8.8.8.8", count=3, interval=0, timeout=1.0)
+
+    assert trace_calls == ["8.8.8.8"]
+    assert pinged_hosts == ["192.168.18.1", "8.8.8.8"] * 3
+    assert "3" in table
+
+
+def test_run_mtr_table_can_rediscover_route_periodically(monkeypatch):
+    class FirstHop:
+        hop = 1
+        address = "192.168.18.1"
+
+    class Trace:
+        def __init__(self):
+            self.hops = [FirstHop()]
+
+    trace_calls = []
+
+    def fake_traceroute(host, timeout=30.0):
+        trace_calls.append(host)
+        return Trace()
+
+    def fake_ping(host, timeout=1.0, count=1):
+        class Result:
+            returncode = 0
+            elapsed = 0.010
+
+        return Result()
+
+    monkeypatch.setattr(import_module("maxconn.net.mtr"), "traceroute", fake_traceroute)
+    monkeypatch.setattr(import_module("maxconn.net.mtr"), "ping", fake_ping)
+
+    run_mtr_table("8.8.8.8", count=5, interval=0, timeout=1.0, rediscover_every=2)
+
+    assert trace_calls == ["8.8.8.8", "8.8.8.8", "8.8.8.8"]

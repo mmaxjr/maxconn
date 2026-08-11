@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.7 - 2026-08-11
+
+- Add initial SFTP client over maxconn's SSH channel subsystem.
+- Add `maxconn sftp ls`, `maxconn sftp get`, and `maxconn sftp put`.
+- Make `maxconn mtr` discover the route once and update known hops every round.
+- Add `--rediscover-every` for periodic MTR route refresh.
+
 ## 0.1.6 - 2026-08-10
 
 - Polish `maxconn mtr` output for silent hops.

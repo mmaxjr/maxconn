@@ -43,6 +43,7 @@ class SSHTransport(Transport):
         password: str | None = None,
         pkey: object | None = None,
         timeout: float | None = None,
+        open_shell: bool = True,
     ) -> None:
         if self._session is None:
             raise ProtocolError("Cannot authenticate: not connected")
@@ -62,8 +63,9 @@ class SSHTransport(Transport):
         else:
             raise AuthenticationError("SSH authentication requires a password or a private key")
 
-        self._channel = open_session_channel(self._session)
-        self._channel.request_shell()
+        if open_shell:
+            self._channel = open_session_channel(self._session)
+            self._channel.request_shell()
 
     def send(self, data: bytes | str) -> None:
         if self._channel is None:
@@ -77,6 +79,13 @@ class SSHTransport(Transport):
         if self._sock is not None:
             self._sock.settimeout(timeout)
         return self._channel.recv_data()
+
+    def open_sftp_channel(self) -> SSHChannel:
+        if self._session is None:
+            raise ProtocolError("Cannot open SFTP: not authenticated")
+        channel = open_session_channel(self._session)
+        channel.request_subsystem("sftp")
+        return channel
 
     def close(self) -> None:
         if self._channel is not None:

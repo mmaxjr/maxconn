@@ -64,7 +64,7 @@ Telnet não puxa dependências extras. SSH usa `cryptography` pelo extra `ssh`.
 Paramiko fica só nos testes, para subir um servidor SSH local e validar o
 cliente do MAXCONN contra uma implementação independente.
 
-Versão atual em desenvolvimento: `0.1.6`.
+Versão atual em desenvolvimento: `0.1.7`.
 
 CLI básica:
 
@@ -75,6 +75,10 @@ maxconn scan 192.0.2.1 --ports 22,23,80,443
 maxconn traceroute 8.8.8.8
 maxconn mtr 8.8.8.8
 maxconn mtr 8.8.8.8 --count 5 --interval 1
+maxconn mtr 8.8.8.8 --rediscover-every 30
+maxconn sftp ls 192.0.2.10 /configs --username admin --password secret
+maxconn sftp get 192.0.2.10 /remote/startup.cfg ./startup.cfg --username admin --password secret
+maxconn sftp put 192.0.2.10 ./backup.cfg /remote/backup.cfg --username admin --password secret
 maxconn snmp get 192.0.2.1 1.3.6.1.2.1.1.5.0 --community public
 maxconn snmp walk 192.0.2.1 1.3.6.1.2.1.1 --community public
 maxconn ssh 192.0.2.10 --username admin --password secret --command "show version"
@@ -202,7 +206,10 @@ No terminal, `maxconn mtr HOST` roda continuamente e atualiza uma tabela por
 hop. Use `Ctrl+C` para parar. Para uma execução limitada, informe `--count`.
 Saltos que não respondem aparecem como `No response from host`, para preservar
 o caminho sem misturar o marcador interno `*` na tabela.
-Em redes com muitos saltos silenciosos, aumente `--trace-timeout`.
+Por padrão a rota é descoberta uma vez e os hops conhecidos são medidos a cada
+rodada, o que deixa a atualização mais parecida com WinMTR. Em redes com muitos
+saltos silenciosos, aumente `--trace-timeout`. Para redescobrir a rota de tempos
+em tempos, use `--rediscover-every N`.
 
 ### HTTP e FTP
 
@@ -228,6 +235,24 @@ with FTPClient.connect(
 ) as ftp:
     print(ftp.list())
     data = ftp.download("backup.cfg")
+```
+
+SFTP inicial:
+
+```python
+import maxconn
+
+sftp = maxconn.connect_sftp(
+    "192.0.2.40",
+    username="user",
+    password="secret",
+)
+try:
+    print(sftp.listdir("/configs"))
+    sftp.download("/configs/startup.cfg", "startup.cfg")
+    sftp.upload("backup.cfg", "/configs/backup.cfg")
+finally:
+    sftp.close()
 ```
 
 SNMP v2c básico:
@@ -369,7 +394,7 @@ Telnet does not pull extra runtime dependencies. SSH uses `cryptography` through
 the `ssh` extra. Paramiko is test-only and is used to run a local SSH server for
 integration tests.
 
-Current development version: `0.1.6`.
+Current development version: `0.1.7`.
 
 Basic CLI:
 
@@ -380,6 +405,10 @@ maxconn scan 192.0.2.1 --ports 22,23,80,443
 maxconn traceroute 8.8.8.8
 maxconn mtr 8.8.8.8
 maxconn mtr 8.8.8.8 --count 5 --interval 1
+maxconn mtr 8.8.8.8 --rediscover-every 30
+maxconn sftp ls 192.0.2.10 /configs --username admin --password secret
+maxconn sftp get 192.0.2.10 /remote/startup.cfg ./startup.cfg --username admin --password secret
+maxconn sftp put 192.0.2.10 ./backup.cfg /remote/backup.cfg --username admin --password secret
 maxconn snmp get 192.0.2.1 1.3.6.1.2.1.1.5.0 --community public
 maxconn snmp walk 192.0.2.1 1.3.6.1.2.1.1 --community public
 maxconn ssh 192.0.2.10 --username admin --password secret --command "show version"
@@ -507,7 +536,10 @@ In the terminal, `maxconn mtr HOST` runs continuously and refreshes a table per
 hop. Stop it with `Ctrl+C`. For a bounded run, pass `--count`. Hops that do not
 answer are shown as `No response from host`, so the path is not hidden and the
 internal `*` marker does not leak into the table.
-On networks with many silent hops, increase `--trace-timeout`.
+By default the route is discovered once and known hops are measured every round,
+which makes refreshes closer to WinMTR. On networks with many silent hops,
+increase `--trace-timeout`. To refresh the route periodically, use
+`--rediscover-every N`.
 
 ### HTTP and FTP
 
@@ -533,6 +565,24 @@ with FTPClient.connect(
 ) as ftp:
     print(ftp.list())
     data = ftp.download("backup.cfg")
+```
+
+Initial SFTP:
+
+```python
+import maxconn
+
+sftp = maxconn.connect_sftp(
+    "192.0.2.40",
+    username="user",
+    password="secret",
+)
+try:
+    print(sftp.listdir("/configs"))
+    sftp.download("/configs/startup.cfg", "startup.cfg")
+    sftp.upload("backup.cfg", "/configs/backup.cfg")
+finally:
+    sftp.close()
 ```
 
 Basic SNMP v2c:
