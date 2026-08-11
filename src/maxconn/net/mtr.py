@@ -101,11 +101,19 @@ def probe_mtr_once(
     timeout: float = 1.0,
     trace_timeout: float = 30.0,
 ) -> None:
+    discover_mtr_hops(host, hops, trace_timeout=trace_timeout)
+    probe_known_mtr_hops(hops, timeout=timeout)
+
+
+def discover_mtr_hops(
+    host: str,
+    hops: dict[int, WinMTRHop],
+    *,
+    trace_timeout: float = 30.0,
+) -> None:
     trace = traceroute(host, timeout=trace_timeout)
-    targets = trace.hops or []
-    if not targets:
-        targets = [type("_Hop", (), {"hop": 1, "address": host})()]
-    elif targets[-1].address != host:
+    targets = trace.hops or [type("_Hop", (), {"hop": 1, "address": host})()]
+    if targets[-1].address != host:
         targets.append(type("_Hop", (), {"hop": targets[-1].hop + 1, "address": host})())
 
     for trace_hop in targets:
@@ -113,6 +121,13 @@ def probe_mtr_once(
             trace_hop.hop,
             WinMTRHop(index=trace_hop.hop, host=trace_hop.address),
         )
+        if current.host == "*" and trace_hop.address != "*":
+            current.host = trace_hop.address
+
+
+def probe_known_mtr_hops(hops: dict[int, WinMTRHop], *, timeout: float = 1.0) -> None:
+    for index in sorted(hops):
+        current = hops[index]
         current.sent += 1
         if current.host == "*":
             continue
@@ -152,12 +167,16 @@ def run_mtr_table(
     count: int | None = None,
     timeout: float = 1.0,
     trace_timeout: float = 30.0,
+    rediscover_every: int | None = None,
     interval: float = 1.0,
 ) -> str:
     hops: dict[int, WinMTRHop] = {}
+    discover_mtr_hops(host, hops, trace_timeout=trace_timeout)
     rounds = 0
     while count is None or rounds < count:
-        probe_mtr_once(host, hops, timeout=timeout, trace_timeout=trace_timeout)
+        if rediscover_every is not None and rounds > 0 and rounds % rediscover_every == 0:
+            discover_mtr_hops(host, hops, trace_timeout=trace_timeout)
+        probe_known_mtr_hops(hops, timeout=timeout)
         rounds += 1
         if count is None:
             print("\033[2J\033[H" + render_mtr_table(hops), flush=True)

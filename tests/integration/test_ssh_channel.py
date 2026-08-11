@@ -4,7 +4,7 @@ from maxconn.transport.ssh import messages
 from maxconn.transport.ssh.auth import authenticate_password, request_userauth_service
 from maxconn.transport.ssh.channel import SSHChannel, open_session_channel
 from maxconn.transport.ssh.negotiate import establish_encrypted_session
-from maxconn.transport.ssh.wire import encode_string, encode_uint32
+from maxconn.transport.ssh.wire import Reader, encode_string, encode_uint32
 
 
 class _QueuedSession:
@@ -71,3 +71,24 @@ def test_recv_data_skips_control_messages_until_channel_data_arrives():
     channel = SSHChannel(_QueuedSession([control_payload, data_payload]), local_id=0, peer_id=1)
 
     assert channel.recv_data() == b"ready>"
+
+
+def test_request_subsystem_sends_sftp_channel_request():
+    class Session:
+        def __init__(self):
+            self.sent = []
+
+        def send_message(self, payload):
+            self.sent.append(payload)
+
+    session = Session()
+    channel = SSHChannel(session, local_id=0, peer_id=7)
+
+    channel.request_subsystem("sftp")
+
+    reader = Reader(session.sent[0])
+    assert reader.read_byte() == messages.SSH_MSG_CHANNEL_REQUEST
+    assert reader.read_uint32() == 7
+    assert reader.read_string() == b"subsystem"
+    assert reader.read_byte() == 0
+    assert reader.read_string() == b"sftp"

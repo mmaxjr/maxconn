@@ -53,7 +53,7 @@ def test_cli_prints_package_version(capsys):
     exit_code = maxconn.cli.main(["--version"])
 
     assert exit_code == 0
-    assert "maxconn 0.1.6" in capsys.readouterr().out
+    assert "maxconn 0.1.7" in capsys.readouterr().out
 
 
 def test_cli_prints_package_version_from_sys_argv(monkeypatch, capsys):
@@ -62,7 +62,7 @@ def test_cli_prints_package_version_from_sys_argv(monkeypatch, capsys):
     exit_code = maxconn.cli.main()
 
     assert exit_code == 0
-    assert "maxconn 0.1.6" in capsys.readouterr().out
+    assert "maxconn 0.1.7" in capsys.readouterr().out
 
 
 def test_cli_ping_prints_reachable_status(monkeypatch, capsys):
@@ -135,9 +135,17 @@ def test_cli_traceroute_prints_hops(monkeypatch, capsys):
 
 
 def test_cli_mtr_prints_summary(monkeypatch, capsys):
-    def fake_run_mtr_table(host, count=None, timeout=1.0, trace_timeout=30.0, interval=1.0):
+    def fake_run_mtr_table(
+        host,
+        count=None,
+        timeout=1.0,
+        trace_timeout=30.0,
+        rediscover_every=None,
+        interval=1.0,
+    ):
         assert count == 5
         assert trace_timeout == 30.0
+        assert rediscover_every is None
         assert interval == 0.0
         return (
             "Hostname                         Nr  Loss%  Sent  Recv  Best  Avg   Worst  Last\n"
@@ -206,3 +214,87 @@ def test_cli_snmp_walk_prints_values(monkeypatch, capsys):
     assert exit_code == 0
     assert "description" in output
     assert "router-01" in output
+
+
+def test_cli_sftp_ls_prints_remote_names(monkeypatch, capsys):
+    class Client:
+        def listdir(self, path):
+            assert path == "/configs"
+            return ["startup.cfg", "backup.cfg"]
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(maxconn.cli.maxconn, "connect_sftp", lambda host, **kwargs: Client())
+
+    exit_code = maxconn.cli.main(
+        ["sftp", "ls", "192.0.2.10", "/configs", "--username", "admin", "--password", "secret"]
+    )
+
+    assert exit_code == 0
+    output = capsys.readouterr().out
+    assert "startup.cfg" in output
+    assert "backup.cfg" in output
+
+
+def test_cli_sftp_get_downloads_file(monkeypatch, tmp_path):
+    target = tmp_path / "startup.cfg"
+    calls = []
+
+    class Client:
+        def download(self, remote, local):
+            calls.append((remote, local))
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(maxconn.cli.maxconn, "connect_sftp", lambda host, **kwargs: Client())
+
+    exit_code = maxconn.cli.main(
+        [
+            "sftp",
+            "get",
+            "192.0.2.10",
+            "/remote/startup.cfg",
+            str(target),
+            "--username",
+            "admin",
+            "--password",
+            "secret",
+        ]
+    )
+
+    assert exit_code == 0
+    assert calls == [("/remote/startup.cfg", str(target))]
+
+
+def test_cli_sftp_put_uploads_file(monkeypatch, tmp_path):
+    source = tmp_path / "startup.cfg"
+    source.write_text("config")
+    calls = []
+
+    class Client:
+        def upload(self, local, remote):
+            calls.append((local, remote))
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(maxconn.cli.maxconn, "connect_sftp", lambda host, **kwargs: Client())
+
+    exit_code = maxconn.cli.main(
+        [
+            "sftp",
+            "put",
+            "192.0.2.10",
+            str(source),
+            "/remote/startup.cfg",
+            "--username",
+            "admin",
+            "--password",
+            "secret",
+        ]
+    )
+
+    assert exit_code == 0
+    assert calls == [(str(source), "/remote/startup.cfg")]

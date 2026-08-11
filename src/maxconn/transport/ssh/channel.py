@@ -62,6 +62,16 @@ class SSHChannel:
         )
         self._session.send_message(shell_payload)
 
+    def request_subsystem(self, name: str) -> None:
+        payload = (
+            bytes([messages.SSH_MSG_CHANNEL_REQUEST])
+            + encode_uint32(self.peer_id)
+            + encode_string(b"subsystem")
+            + bytes([0])
+            + encode_string(name.encode("utf-8"))
+        )
+        self._session.send_message(payload)
+
     def send_data(self, data: bytes) -> None:
         payload = bytes([messages.SSH_MSG_CHANNEL_DATA]) + encode_uint32(self.peer_id) + encode_string(data)
         self._session.send_message(payload)

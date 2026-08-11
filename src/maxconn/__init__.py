@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-__version__ = "0.1.6"
+__version__ = "0.1.7"
 
 from maxconn.exceptions import (
     AuthenticationError,
@@ -39,6 +39,7 @@ __all__ = [
     "TraceRouteResult",
     "__version__",
     "connect",
+    "connect_sftp",
     "mtr",
     "ping",
     "scan",
@@ -88,4 +89,25 @@ def connect(
         protocol=protocol,
         command_timeout=command_timeout,
         prompt_timeout=prompt_timeout,
+    )
+
+
+def connect_sftp(
+    host: str,
+    *,
+    username: str,
+    password: str | None = None,
+    pkey: object | None = None,
+    port: int = 22,
+    timeout: float = 10.0,
+):
+    from maxconn.protocol.sftp import connect_sftp as _connect_sftp
+
+    return _connect_sftp(
+        host,
+        username=username,
+        password=password,
+        pkey=pkey,
+        port=port,
+        timeout=timeout,
     )
