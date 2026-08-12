@@ -64,7 +64,7 @@ Telnet não puxa dependências extras. SSH usa `cryptography` pelo extra `ssh`.
 Paramiko fica só nos testes, para subir um servidor SSH local e validar o
 cliente do MAXCONN contra uma implementação independente.
 
-Versão atual em desenvolvimento: `0.1.7`.
+Versão atual em desenvolvimento: `0.1.8`.
 
 CLI básica:
 
@@ -76,9 +76,16 @@ maxconn traceroute 8.8.8.8
 maxconn mtr 8.8.8.8
 maxconn mtr 8.8.8.8 --count 5 --interval 1
 maxconn mtr 8.8.8.8 --rediscover-every 30
+maxconn mtr 8.8.8.8 --count 5 --json
+maxconn mtr 8.8.8.8 --count 5 --export mtr-report.txt --no-clear
 maxconn sftp ls 192.0.2.10 /configs --username admin --password secret
 maxconn sftp get 192.0.2.10 /remote/startup.cfg ./startup.cfg --username admin --password secret
 maxconn sftp put 192.0.2.10 ./backup.cfg /remote/backup.cfg --username admin --password secret
+maxconn sftp stat 192.0.2.10 /remote/startup.cfg --username admin --password secret
+maxconn sftp mkdir 192.0.2.10 /remote/new-folder --username admin --password secret
+maxconn sftp rm 192.0.2.10 /remote/old.cfg --username admin --password secret
+maxconn sftp rename 192.0.2.10 /remote/a.cfg /remote/b.cfg --username admin --password secret
+maxconn doctor
 maxconn snmp get 192.0.2.1 1.3.6.1.2.1.1.5.0 --community public
 maxconn snmp walk 192.0.2.1 1.3.6.1.2.1.1 --community public
 maxconn ssh 192.0.2.10 --username admin --password secret --command "show version"
@@ -210,6 +217,7 @@ Por padrão a rota é descoberta uma vez e os hops conhecidos são medidos a cad
 rodada, o que deixa a atualização mais parecida com WinMTR. Em redes com muitos
 saltos silenciosos, aumente `--trace-timeout`. Para redescobrir a rota de tempos
 em tempos, use `--rediscover-every N`.
+Para automação e relatórios, use `--json`, `--export caminho.txt` e `--no-clear`.
 
 ### HTTP e FTP
 
@@ -249,8 +257,12 @@ sftp = maxconn.connect_sftp(
 )
 try:
     print(sftp.listdir("/configs"))
+    print(sftp.stat("/configs/startup.cfg"))
     sftp.download("/configs/startup.cfg", "startup.cfg")
     sftp.upload("backup.cfg", "/configs/backup.cfg")
+    sftp.mkdir("/configs/archive")
+    sftp.rename("/configs/backup.cfg", "/configs/archive/backup.cfg")
+    sftp.remove("/configs/archive/old.cfg")
 finally:
     sftp.close()
 ```
@@ -394,7 +406,7 @@ Telnet does not pull extra runtime dependencies. SSH uses `cryptography` through
 the `ssh` extra. Paramiko is test-only and is used to run a local SSH server for
 integration tests.
 
-Current development version: `0.1.7`.
+Current development version: `0.1.8`.
 
 Basic CLI:
 
@@ -406,9 +418,16 @@ maxconn traceroute 8.8.8.8
 maxconn mtr 8.8.8.8
 maxconn mtr 8.8.8.8 --count 5 --interval 1
 maxconn mtr 8.8.8.8 --rediscover-every 30
+maxconn mtr 8.8.8.8 --count 5 --json
+maxconn mtr 8.8.8.8 --count 5 --export mtr-report.txt --no-clear
 maxconn sftp ls 192.0.2.10 /configs --username admin --password secret
 maxconn sftp get 192.0.2.10 /remote/startup.cfg ./startup.cfg --username admin --password secret
 maxconn sftp put 192.0.2.10 ./backup.cfg /remote/backup.cfg --username admin --password secret
+maxconn sftp stat 192.0.2.10 /remote/startup.cfg --username admin --password secret
+maxconn sftp mkdir 192.0.2.10 /remote/new-folder --username admin --password secret
+maxconn sftp rm 192.0.2.10 /remote/old.cfg --username admin --password secret
+maxconn sftp rename 192.0.2.10 /remote/a.cfg /remote/b.cfg --username admin --password secret
+maxconn doctor
 maxconn snmp get 192.0.2.1 1.3.6.1.2.1.1.5.0 --community public
 maxconn snmp walk 192.0.2.1 1.3.6.1.2.1.1 --community public
 maxconn ssh 192.0.2.10 --username admin --password secret --command "show version"
@@ -540,6 +559,7 @@ By default the route is discovered once and known hops are measured every round,
 which makes refreshes closer to WinMTR. On networks with many silent hops,
 increase `--trace-timeout`. To refresh the route periodically, use
 `--rediscover-every N`.
+For automation and reports, use `--json`, `--export path.txt`, and `--no-clear`.
 
 ### HTTP and FTP
 
@@ -579,8 +599,12 @@ sftp = maxconn.connect_sftp(
 )
 try:
     print(sftp.listdir("/configs"))
+    print(sftp.stat("/configs/startup.cfg"))
     sftp.download("/configs/startup.cfg", "startup.cfg")
     sftp.upload("backup.cfg", "/configs/backup.cfg")
+    sftp.mkdir("/configs/archive")
+    sftp.rename("/configs/backup.cfg", "/configs/archive/backup.cfg")
+    sftp.remove("/configs/archive/old.cfg")
 finally:
     sftp.close()
 ```

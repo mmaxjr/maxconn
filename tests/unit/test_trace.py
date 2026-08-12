@@ -3,7 +3,14 @@ from __future__ import annotations
 import subprocess
 from importlib import import_module
 
-from maxconn.net.mtr import WinMTRHop, mtr, probe_mtr_once, render_mtr_table, run_mtr_table
+from maxconn.net.mtr import (
+    WinMTRHop,
+    mtr,
+    probe_mtr_once,
+    render_mtr_json,
+    render_mtr_table,
+    run_mtr_table,
+)
 from maxconn.net.traceroute import traceroute
 
 
@@ -296,3 +303,17 @@ def test_run_mtr_table_can_rediscover_route_periodically(monkeypatch):
     run_mtr_table("8.8.8.8", count=5, interval=0, timeout=1.0, rediscover_every=2)
 
     assert trace_calls == ["8.8.8.8", "8.8.8.8", "8.8.8.8"]
+
+
+def test_render_mtr_json_contains_hop_metrics():
+    hops = {
+        1: WinMTRHop(index=1, host="192.168.1.1", sent=2, received=2, times=[0.010, 0.020]),
+        2: WinMTRHop(index=2, host="*", sent=2, received=0),
+    }
+
+    payload = render_mtr_json(hops)
+
+    assert '"host": "192.168.1.1"' in payload
+    assert '"sent": 2' in payload
+    assert '"avg_ms": 15.0' in payload
+    assert '"host": "No response from host"' in payload

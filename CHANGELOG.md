@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.8 - 2026-08-12
+
+- Add `maxconn sftp stat`, `mkdir`, `rm`, and `rename`.
+- Add SFTP `stat`, `mkdir`, `remove`, and `rename` APIs.
+- Add `maxconn mtr --json`, `--export`, and `--no-clear`.
+- Add `maxconn doctor` for local environment diagnostics.
+- Improve MTR JSON rendering for automation/reporting.
+
 ## 0.1.7 - 2026-08-11
 
 - Add initial SFTP client over maxconn's SSH channel subsystem.

@@ -15,13 +15,21 @@ SSH_FXP_READ = 5
 SSH_FXP_WRITE = 6
 SSH_FXP_OPENDIR = 11
 SSH_FXP_READDIR = 12
+SSH_FXP_REMOVE = 13
+SSH_FXP_MKDIR = 14
+SSH_FXP_STAT = 17
+SSH_FXP_RENAME = 18
 SSH_FXP_STATUS = 101
 SSH_FXP_HANDLE = 102
 SSH_FXP_DATA = 103
 SSH_FXP_NAME = 104
+SSH_FXP_ATTRS = 105
 
 SSH_FX_OK = 0
 SSH_FX_EOF = 1
+SSH_FX_NO_SUCH_FILE = 2
+SSH_FX_PERMISSION_DENIED = 3
+SSH_FX_FAILURE = 4
 
 SSH_FXF_READ = 0x00000001
 SSH_FXF_WRITE = 0x00000002
@@ -43,6 +51,16 @@ class SFTPChannel(Protocol):
 class SFTPName:
     filename: str
     longname: str
+
+
+@dataclass(frozen=True)
+class SFTPAttrs:
+    size: int | None = None
+    uid: int | None = None
+    gid: int | None = None
+    permissions: int | None = None
+    atime: int | None = None
+    mtime: int | None = None
 
 
 class SFTPClient:
@@ -126,6 +144,35 @@ class SFTPClient:
         finally:
             self._close_handle(handle)
 
+    def stat(self, path: str) -> SFTPAttrs:
+        request_id = self._request_id()
+        self._send_request(SSH_FXP_STAT, request_id, _encode_string(path.encode()))
+        payload = self._recv_packet()
+        if payload[0] == SSH_FXP_STATUS:
+            self._raise_status(payload)
+        if payload[0] != SSH_FXP_ATTRS:
+            raise ProtocolError(f"Expected SFTP ATTRS, got message {payload[0]}")
+        response_id = _read_uint32(payload, 1)
+        if response_id != request_id:
+            raise ProtocolError(f"Unexpected SFTP response id {response_id}, expected {request_id}")
+        return _parse_attrs(payload, 5)[0]
+
+    def mkdir(self, path: str) -> None:
+        request_id = self._request_id()
+        self._send_request(SSH_FXP_MKDIR, request_id, _encode_string(path.encode()) + struct.pack(">I", 0))
+        self._expect_ok(request_id)
+
+    def remove(self, path: str) -> None:
+        request_id = self._request_id()
+        self._send_request(SSH_FXP_REMOVE, request_id, _encode_string(path.encode()))
+        self._expect_ok(request_id)
+
+    def rename(self, old_path: str, new_path: str) -> None:
+        request_id = self._request_id()
+        payload = _encode_string(old_path.encode()) + _encode_string(new_path.encode())
+        self._send_request(SSH_FXP_RENAME, request_id, payload)
+        self._expect_ok(request_id)
+
     def close(self) -> None:
         self._channel.close()
 
@@ -172,7 +219,13 @@ class SFTPClient:
     def _raise_status(self, payload: bytes) -> None:
         code = _read_uint32(payload, 5)
         message, _ = _read_string(payload, 9)
-        text = message.decode(errors="replace") or f"SFTP status {code}"
+        default = {
+            SSH_FX_NO_SUCH_FILE: "remote file not found",
+            SSH_FX_PERMISSION_DENIED: "permission denied",
+            SSH_FX_FAILURE: "SFTP operation failed",
+        }.get(code, f"SFTP status {code}")
+        detail = message.decode(errors="replace")
+        text = f"{default}: {detail}" if detail else default
         raise ProtocolError(text)
 
     def _send_request(self, msg_type: int, request_id: int, payload: bytes) -> None:
@@ -215,9 +268,7 @@ def _parse_names(payload: bytes) -> list[SFTPName]:
     for _ in range(count):
         filename, offset = _read_string(payload, offset)
         longname, offset = _read_string(payload, offset)
-        attrs_flags = _read_uint32(payload, offset)
-        offset += 4
-        offset = _skip_attrs(payload, offset, attrs_flags)
+        _, offset = _parse_attrs(payload, offset)
         names.append(
             SFTPName(
                 filename=filename.decode(errors="replace"),
@@ -227,21 +278,42 @@ def _parse_names(payload: bytes) -> list[SFTPName]:
     return names
 
 
-def _skip_attrs(payload: bytes, offset: int, flags: int) -> int:
+def _parse_attrs(payload: bytes, offset: int) -> tuple[SFTPAttrs, int]:
+    flags = _read_uint32(payload, offset)
+    offset += 4
+    size = None
+    uid = None
+    gid = None
+    permissions = None
+    atime = None
+    mtime = None
     if flags & 0x00000001:
+        size = struct.unpack(">Q", payload[offset : offset + 8])[0]
         offset += 8
     if flags & 0x00000002:
+        uid = _read_uint32(payload, offset)
+        gid = _read_uint32(payload, offset + 4)
         offset += 8
     if flags & 0x00000004:
+        permissions = _read_uint32(payload, offset)
         offset += 4
     if flags & 0x00000008:
+        atime = _read_uint32(payload, offset)
+        mtime = _read_uint32(payload, offset + 4)
         offset += 8
     if flags & 0x80000000:
         count = _read_uint32(payload, offset)
         offset += 4
         for _ in range(count * 2):
             _, offset = _read_string(payload, offset)
-    return offset
+    return SFTPAttrs(
+        size=size,
+        uid=uid,
+        gid=gid,
+        permissions=permissions,
+        atime=atime,
+        mtime=mtime,
+    ), offset
 
 
 def _encode_string(value: bytes) -> bytes:

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import struct
 
+from maxconn.exceptions import ProtocolError
 from maxconn.protocol.sftp import SFTPClient
 
 SSH_FXP_INIT = 1
@@ -12,12 +13,20 @@ SSH_FXP_READ = 5
 SSH_FXP_WRITE = 6
 SSH_FXP_OPENDIR = 11
 SSH_FXP_READDIR = 12
+SSH_FXP_REMOVE = 13
+SSH_FXP_MKDIR = 14
+SSH_FXP_STAT = 17
+SSH_FXP_RENAME = 18
 SSH_FXP_STATUS = 101
 SSH_FXP_HANDLE = 102
 SSH_FXP_DATA = 103
 SSH_FXP_NAME = 104
+SSH_FXP_ATTRS = 105
 SSH_FX_OK = 0
 SSH_FX_EOF = 1
+SSH_FX_NO_SUCH_FILE = 2
+SSH_FX_PERMISSION_DENIED = 3
+SSH_FILEXFER_ATTR_SIZE = 0x00000001
 
 
 class FakeSFTPChannel:
@@ -49,6 +58,13 @@ def status(request_id: int, code: int) -> bytes:
         + struct.pack(">II", request_id, code)
         + string(b"")
         + string(b"")
+    )
+
+
+def attrs(request_id: int, *, size: int) -> bytes:
+    return packet(
+        bytes([SSH_FXP_ATTRS])
+        + struct.pack(">IIQ", request_id, SSH_FILEXFER_ATTR_SIZE, size)
     )
 
 
@@ -132,3 +148,70 @@ def test_sftp_upload_writes_file_and_closes(tmp_path):
     assert channel.sent[2][4] == SSH_FXP_WRITE
     assert b"config" in channel.sent[2]
     assert channel.sent[3][4] == SSH_FXP_CLOSE
+
+
+def test_sftp_stat_returns_file_size():
+    channel = FakeSFTPChannel(
+        [
+            packet(bytes([SSH_FXP_VERSION]) + struct.pack(">I", 3)),
+            attrs(1, size=4096),
+        ]
+    )
+    client = SFTPClient(channel)
+
+    result = client.stat("/remote/startup.cfg")
+
+    assert result.size == 4096
+    assert channel.sent[1][4] == SSH_FXP_STAT
+
+
+def test_sftp_mkdir_remove_and_rename_expect_success_status():
+    channel = FakeSFTPChannel(
+        [
+            packet(bytes([SSH_FXP_VERSION]) + struct.pack(">I", 3)),
+            status(1, SSH_FX_OK),
+            status(2, SSH_FX_OK),
+            status(3, SSH_FX_OK),
+        ]
+    )
+    client = SFTPClient(channel)
+
+    client.mkdir("/remote/new")
+    client.remove("/remote/old.cfg")
+    client.rename("/remote/a.cfg", "/remote/b.cfg")
+
+    assert channel.sent[1][4] == SSH_FXP_MKDIR
+    assert channel.sent[2][4] == SSH_FXP_REMOVE
+    assert channel.sent[3][4] == SSH_FXP_RENAME
+
+
+def test_sftp_status_errors_are_user_friendly():
+    channel = FakeSFTPChannel(
+        [
+            packet(bytes([SSH_FXP_VERSION]) + struct.pack(">I", 3)),
+            status(1, SSH_FX_NO_SUCH_FILE),
+        ]
+    )
+    client = SFTPClient(channel)
+
+    try:
+        client.stat("/missing.cfg")
+    except ProtocolError as exc:
+        assert "remote file not found" in str(exc)
+    else:
+        raise AssertionError("expected missing file error")
+
+    channel = FakeSFTPChannel(
+        [
+            packet(bytes([SSH_FXP_VERSION]) + struct.pack(">I", 3)),
+            status(1, SSH_FX_PERMISSION_DENIED),
+        ]
+    )
+    client = SFTPClient(channel)
+
+    try:
+        client.mkdir("/denied")
+    except ProtocolError as exc:
+        assert "permission denied" in str(exc)
+    else:
+        raise AssertionError("expected permission error")

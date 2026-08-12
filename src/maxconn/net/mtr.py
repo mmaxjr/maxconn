@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from time import sleep
 
@@ -155,6 +156,26 @@ def render_mtr_table(hops: dict[int, WinMTRHop]) -> str:
     return "\n".join(lines)
 
 
+def render_mtr_json(hops: dict[int, WinMTRHop]) -> str:
+    payload = []
+    for index in sorted(hops):
+        hop = hops[index]
+        payload.append(
+            {
+                "nr": hop.index,
+                "host": "No response from host" if hop.host == "*" else hop.host,
+                "sent": hop.sent,
+                "recv": hop.received,
+                "loss_percent": hop.loss_percent,
+                "best_ms": hop.best_ms,
+                "avg_ms": hop.avg_ms,
+                "worst_ms": hop.worst_ms,
+                "last_ms": hop.last_ms,
+            }
+        )
+    return json.dumps({"hops": payload}, indent=2)
+
+
 def _format_ms(value: float | None) -> str:
     if value is None:
         return "0 ms"
@@ -169,6 +190,8 @@ def run_mtr_table(
     trace_timeout: float = 30.0,
     rediscover_every: int | None = None,
     interval: float = 1.0,
+    output: str = "table",
+    clear: bool = True,
 ) -> str:
     hops: dict[int, WinMTRHop] = {}
     discover_mtr_hops(host, hops, trace_timeout=trace_timeout)
@@ -179,8 +202,12 @@ def run_mtr_table(
         probe_known_mtr_hops(hops, timeout=timeout)
         rounds += 1
         if count is None:
-            print("\033[2J\033[H" + render_mtr_table(hops), flush=True)
+            rendered = render_mtr_json(hops) if output == "json" else render_mtr_table(hops)
+            prefix = "\033[2J\033[H" if clear else ""
+            print(prefix + rendered, flush=True)
             sleep(interval)
         elif rounds < count and interval > 0:
             sleep(interval)
+    if output == "json":
+        return render_mtr_json(hops)
     return render_mtr_table(hops)

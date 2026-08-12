@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import argparse
+import platform
+import shutil
 import sys
+from pathlib import Path
 
 import maxconn
 from maxconn.net.mtr import run_mtr_table
@@ -38,6 +41,8 @@ def main(argv: list[str] | None = None) -> int:
     scan_command.add_argument("--timeout", type=float, default=1.0)
     scan_command.add_argument("--concurrency", type=int, default=100)
 
+    subparsers.add_parser("doctor")
+
     traceroute_command = subparsers.add_parser("traceroute")
     traceroute_command.add_argument("host")
     traceroute_command.add_argument("--timeout", type=float, default=30.0)
@@ -49,6 +54,9 @@ def main(argv: list[str] | None = None) -> int:
     mtr_command.add_argument("--trace-timeout", type=float, default=30.0)
     mtr_command.add_argument("--rediscover-every", type=int, default=None)
     mtr_command.add_argument("--interval", type=float, default=1.0)
+    mtr_command.add_argument("--json", action="store_true")
+    mtr_command.add_argument("--export")
+    mtr_command.add_argument("--no-clear", action="store_true")
 
     sftp_command = subparsers.add_parser("sftp")
     sftp_subcommands = sftp_command.add_subparsers(dest="sftp_action", required=True)
@@ -63,7 +71,20 @@ def main(argv: list[str] | None = None) -> int:
     sftp_put.add_argument("host")
     sftp_put.add_argument("local_path")
     sftp_put.add_argument("remote_path")
-    for sftp_action in (sftp_ls, sftp_get, sftp_put):
+    sftp_stat = sftp_subcommands.add_parser("stat")
+    sftp_stat.add_argument("host")
+    sftp_stat.add_argument("remote_path")
+    sftp_mkdir = sftp_subcommands.add_parser("mkdir")
+    sftp_mkdir.add_argument("host")
+    sftp_mkdir.add_argument("remote_path")
+    sftp_rm = sftp_subcommands.add_parser("rm")
+    sftp_rm.add_argument("host")
+    sftp_rm.add_argument("remote_path")
+    sftp_rename = sftp_subcommands.add_parser("rename")
+    sftp_rename.add_argument("host")
+    sftp_rename.add_argument("old_path")
+    sftp_rename.add_argument("new_path")
+    for sftp_action in (sftp_ls, sftp_get, sftp_put, sftp_stat, sftp_mkdir, sftp_rm, sftp_rename):
         sftp_action.add_argument("--username", required=True)
         sftp_action.add_argument("--password")
         sftp_action.add_argument("--port", type=int, default=22)
@@ -106,6 +127,25 @@ def main(argv: list[str] | None = None) -> int:
             print(f"{result.port} {status} ({result.elapsed:.3f}s)")
         return 0 if any(result.open for result in results) else 1
 
+    if args.protocol == "doctor":
+        tools = {
+            "ping": shutil.which("ping"),
+            "tracert": shutil.which("tracert"),
+            "traceroute": shutil.which("traceroute"),
+        }
+        print(f"maxconn={maxconn.__version__}")
+        print(f"python={platform.python_version()}")
+        print(f"platform={platform.platform()}")
+        for name, path in tools.items():
+            print(f"{name}={path or 'not found'}")
+        try:
+            import cryptography  # noqa: F401
+        except ImportError:
+            print("ssh_extra=not installed")
+        else:
+            print("ssh_extra=installed")
+        return 0
+
     if args.protocol == "traceroute":
         result = maxconn.traceroute(args.host, timeout=args.timeout)
         for hop in result.hops:
@@ -123,10 +163,14 @@ def main(argv: list[str] | None = None) -> int:
                 trace_timeout=args.trace_timeout,
                 rediscover_every=args.rediscover_every,
                 interval=args.interval,
+                output="json" if args.json else "table",
+                clear=not args.no_clear,
             )
         except KeyboardInterrupt:
             print()
             return 0
+        if args.export:
+            Path(args.export).write_text(table)
         if args.count is not None:
             print(table)
         return 0
@@ -147,6 +191,16 @@ def main(argv: list[str] | None = None) -> int:
                 client.download(args.remote_path, args.local_path)
             elif args.sftp_action == "put":
                 client.upload(args.local_path, args.remote_path)
+            elif args.sftp_action == "stat":
+                attrs = client.stat(args.remote_path)
+                permissions = "None" if attrs.permissions is None else oct(attrs.permissions)
+                print(f"size={attrs.size} permissions={permissions}")
+            elif args.sftp_action == "mkdir":
+                client.mkdir(args.remote_path)
+            elif args.sftp_action == "rm":
+                client.remove(args.remote_path)
+            elif args.sftp_action == "rename":
+                client.rename(args.old_path, args.new_path)
         finally:
             client.close()
         return 0
