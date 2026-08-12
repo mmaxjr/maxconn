@@ -1,3 +1,5 @@
+import json
+
 import maxconn.cli
 
 
@@ -53,7 +55,7 @@ def test_cli_prints_package_version(capsys):
     exit_code = maxconn.cli.main(["--version"])
 
     assert exit_code == 0
-    assert "maxconn 0.1.8" in capsys.readouterr().out
+    assert "maxconn 0.1.9" in capsys.readouterr().out
 
 
 def test_cli_prints_package_version_from_sys_argv(monkeypatch, capsys):
@@ -62,7 +64,7 @@ def test_cli_prints_package_version_from_sys_argv(monkeypatch, capsys):
     exit_code = maxconn.cli.main()
 
     assert exit_code == 0
-    assert "maxconn 0.1.8" in capsys.readouterr().out
+    assert "maxconn 0.1.9" in capsys.readouterr().out
 
 
 def test_cli_ping_prints_reachable_status(monkeypatch, capsys):
@@ -78,6 +80,36 @@ def test_cli_ping_prints_reachable_status(monkeypatch, capsys):
 
     assert exit_code == 0
     assert "192.0.2.1 reachable" in capsys.readouterr().out
+
+
+def test_cli_ping_can_print_json_and_export(monkeypatch, capsys, tmp_path):
+    class FakePingResult:
+        host = "192.0.2.1"
+        reachable = True
+        elapsed = 0.025
+        returncode = 0
+        output = "ok"
+        error = ""
+
+    export_path = tmp_path / "ping.json"
+    calls = {}
+
+    def fake_ping(host, timeout=2.0, count=1):
+        calls["count"] = count
+        return FakePingResult()
+
+    monkeypatch.setattr(maxconn.cli.maxconn, "ping", fake_ping)
+
+    exit_code = maxconn.cli.main(
+        ["ping", "192.0.2.1", "--json", "--export", str(export_path), "--retries", "3"]
+    )
+
+    assert exit_code == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["reachable"] is True
+    assert payload["returncode"] == 0
+    assert json.loads(export_path.read_text())["host"] == "192.0.2.1"
+    assert calls["count"] == 3
 
 
 def test_cli_scan_prints_open_ports(monkeypatch, capsys):
@@ -113,6 +145,22 @@ def test_cli_scan_prints_open_ports(monkeypatch, capsys):
     }
 
 
+def test_cli_scan_can_print_json(monkeypatch, capsys):
+    class FakeScanResult:
+        host = "192.0.2.1"
+        port = 22
+        open = True
+        elapsed = 0.01
+        error = ""
+
+    monkeypatch.setattr(maxconn.cli.maxconn, "scan", lambda *args, **kwargs: [FakeScanResult()])
+
+    exit_code = maxconn.cli.main(["scan", "192.0.2.1", "--ports", "22", "--output", "json"])
+
+    assert exit_code == 0
+    assert json.loads(capsys.readouterr().out)["ports"][0]["port"] == 22
+
+
 def test_cli_traceroute_prints_hops(monkeypatch, capsys):
     class Hop:
         hop = 1
@@ -132,6 +180,30 @@ def test_cli_traceroute_prints_hops(monkeypatch, capsys):
 
     assert exit_code == 0
     assert "1 192.0.2.1" in capsys.readouterr().out
+
+
+def test_cli_traceroute_can_print_json(monkeypatch, capsys):
+    class Hop:
+        hop = 1
+        address = "192.0.2.1"
+        raw = "1 192.0.2.1"
+
+    class Result:
+        host = "example.com"
+        returncode = 0
+        output = "trace"
+        error = ""
+
+        def __init__(self):
+            self.hops = [Hop()]
+
+    monkeypatch.setattr(maxconn.cli.maxconn, "traceroute", lambda host, timeout=30.0: Result())
+
+    exit_code = maxconn.cli.main(["traceroute", "example.com", "--json"])
+
+    assert exit_code == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["hops"][0]["address"] == "192.0.2.1"
 
 
 def test_cli_mtr_prints_summary(monkeypatch, capsys):
@@ -191,6 +263,28 @@ def test_cli_mtr_can_print_json(monkeypatch, capsys):
     assert '{"hops": []}' in capsys.readouterr().out
 
 
+def test_cli_mtr_accepts_output_json_alias(monkeypatch, capsys):
+    def fake_run_mtr_table(
+        host,
+        count=None,
+        timeout=1.0,
+        trace_timeout=30.0,
+        rediscover_every=None,
+        interval=1.0,
+        output="table",
+        clear=True,
+    ):
+        assert output == "json"
+        return '{"hops": []}'
+
+    monkeypatch.setattr(maxconn.cli, "run_mtr_table", fake_run_mtr_table)
+
+    exit_code = maxconn.cli.main(["mtr", "192.0.2.1", "--count", "1", "--output", "json"])
+
+    assert exit_code == 0
+    assert '{"hops": []}' in capsys.readouterr().out
+
+
 def test_cli_mtr_can_export_output(monkeypatch, tmp_path):
     export_path = tmp_path / "mtr.txt"
 
@@ -242,6 +336,34 @@ def test_cli_snmp_get_prints_value(monkeypatch, capsys):
     assert "1.3.6.1.2.1.1.5.0 = router-01" in capsys.readouterr().out
 
 
+def test_cli_snmp_get_can_retry_and_print_json(monkeypatch, capsys):
+    class Result:
+        oid = "1.3.6.1.2.1.1.5.0"
+        value = "router-01"
+
+    class Client:
+        attempts = 0
+
+        def __init__(self, host, community="public", port=161, timeout=2.0):
+            pass
+
+        def get(self, oid):
+            Client.attempts += 1
+            if Client.attempts == 1:
+                raise TimeoutError("timed out")
+            return Result()
+
+    monkeypatch.setattr(maxconn.cli, "SNMPClient", Client)
+
+    exit_code = maxconn.cli.main(
+        ["snmp", "get", "192.0.2.1", "1.3.6.1.2.1.1.5.0", "--json", "--retries", "2"]
+    )
+
+    assert exit_code == 0
+    assert json.loads(capsys.readouterr().out)["value"] == "router-01"
+    assert Client.attempts == 2
+
+
 def test_cli_snmp_walk_prints_values(monkeypatch, capsys):
     class Client:
         def __init__(self, host, community="public", port=161, timeout=2.0):
@@ -266,6 +388,26 @@ def test_cli_snmp_walk_prints_values(monkeypatch, capsys):
     assert exit_code == 0
     assert "description" in output
     assert "router-01" in output
+
+
+def test_cli_snmp_walk_can_print_json(monkeypatch, capsys):
+    class Client:
+        def __init__(self, host, community="public", port=161, timeout=2.0):
+            pass
+
+        def walk(self, oid, limit=100):
+            class Result:
+                oid = "1.3.6.1.2.1.1.1.0"
+                value = "description"
+
+            return [Result()]
+
+    monkeypatch.setattr(maxconn.cli, "SNMPClient", Client)
+
+    exit_code = maxconn.cli.main(["snmp", "walk", "192.0.2.1", "1.3.6.1.2.1.1", "--json"])
+
+    assert exit_code == 0
+    assert json.loads(capsys.readouterr().out)["results"][0]["value"] == "description"
 
 
 def test_cli_sftp_ls_prints_remote_names(monkeypatch, capsys):
@@ -377,6 +519,34 @@ def test_cli_sftp_stat_prints_size(monkeypatch, capsys):
     assert "permissions=0o644" in output
 
 
+def test_cli_sftp_stat_can_print_json(monkeypatch, capsys):
+    class Attrs:
+        size = 4096
+        uid = 1000
+        gid = 1000
+        permissions = 0o644
+        atime = 1
+        mtime = 2
+
+    class Client:
+        def stat(self, path):
+            return Attrs()
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(maxconn.cli.maxconn, "connect_sftp", lambda host, **kwargs: Client())
+
+    exit_code = maxconn.cli.main(
+        ["sftp", "stat", "192.0.2.10", "/remote/startup.cfg", "--username", "admin", "--json"]
+    )
+
+    assert exit_code == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["permissions"] == "0o644"
+    assert payload["path"] == "/remote/startup.cfg"
+
+
 def test_cli_sftp_mkdir_rm_and_rename_call_client(monkeypatch):
     calls = []
 
@@ -420,3 +590,24 @@ def test_cli_doctor_prints_environment(capsys):
     assert "python=" in output
     assert "platform=" in output
     assert "ping=" in output
+
+
+def test_cli_selftest_prints_basic_checks(capsys):
+    exit_code = maxconn.cli.main(["selftest"])
+
+    assert exit_code == 0
+    output = capsys.readouterr().out
+    assert "import=ok" in output
+    assert "json=ok" in output
+
+
+def test_cli_prints_friendly_error(monkeypatch, capsys):
+    def fake_scan(*args, **kwargs):
+        raise ValueError("bad input")
+
+    monkeypatch.setattr(maxconn.cli.maxconn, "scan", fake_scan)
+
+    exit_code = maxconn.cli.main(["scan", "192.0.2.1", "--ports", "22"])
+
+    assert exit_code == 1
+    assert "Error: bad input" in capsys.readouterr().err

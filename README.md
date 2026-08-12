@@ -64,30 +64,49 @@ Telnet não puxa dependências extras. SSH usa `cryptography` pelo extra `ssh`.
 Paramiko fica só nos testes, para subir um servidor SSH local e validar o
 cliente do MAXCONN contra uma implementação independente.
 
-Versão atual em desenvolvimento: `0.1.8`.
+Versão atual em desenvolvimento: `0.1.9`.
+
+### Status dos módulos
+
+| Área | Status | Interface |
+|---|---|---|
+| SSH/Telnet | uso básico | API Python e CLI |
+| Ping/scan/traceroute | uso básico | API Python e CLI |
+| MTR | uso básico com tabela ao vivo | API Python e CLI |
+| SNMP v2c GET/WALK | uso básico | API Python e CLI |
+| SFTP | operações de arquivo básicas | API Python e CLI |
+| HTTP/FTP | cliente simples | API Python |
 
 CLI básica:
 
 ```bash
 maxconn --version
+maxconn selftest
 maxconn ping 192.0.2.1
+maxconn ping 192.0.2.1 --output json --export ping.json
 maxconn scan 192.0.2.1 --ports 22,23,80,443
+maxconn scan 192.0.2.1 --ports 22,80,443 --json
 maxconn traceroute 8.8.8.8
+maxconn traceroute 8.8.8.8 --output json
 maxconn mtr 8.8.8.8
 maxconn mtr 8.8.8.8 --count 5 --interval 1
 maxconn mtr 8.8.8.8 --rediscover-every 30
 maxconn mtr 8.8.8.8 --count 5 --json
+maxconn mtr 8.8.8.8 --count 5 --output json
 maxconn mtr 8.8.8.8 --count 5 --export mtr-report.txt --no-clear
 maxconn sftp ls 192.0.2.10 /configs --username admin --password secret
 maxconn sftp get 192.0.2.10 /remote/startup.cfg ./startup.cfg --username admin --password secret
 maxconn sftp put 192.0.2.10 ./backup.cfg /remote/backup.cfg --username admin --password secret
 maxconn sftp stat 192.0.2.10 /remote/startup.cfg --username admin --password secret
+maxconn sftp stat 192.0.2.10 /remote/startup.cfg --username admin --password secret --json
 maxconn sftp mkdir 192.0.2.10 /remote/new-folder --username admin --password secret
 maxconn sftp rm 192.0.2.10 /remote/old.cfg --username admin --password secret
 maxconn sftp rename 192.0.2.10 /remote/a.cfg /remote/b.cfg --username admin --password secret
 maxconn doctor
 maxconn snmp get 192.0.2.1 1.3.6.1.2.1.1.5.0 --community public
+maxconn snmp get 192.0.2.1 1.3.6.1.2.1.1.5.0 --community public --json --retries 2
 maxconn snmp walk 192.0.2.1 1.3.6.1.2.1.1 --community public
+maxconn snmp walk 192.0.2.1 1.3.6.1.2.1.1 --community public --output json
 maxconn ssh 192.0.2.10 --username admin --password secret --command "show version"
 maxconn telnet 192.0.2.20 --username admin --password secret --command "show status"
 ```
@@ -217,7 +236,23 @@ Por padrão a rota é descoberta uma vez e os hops conhecidos são medidos a cad
 rodada, o que deixa a atualização mais parecida com WinMTR. Em redes com muitos
 saltos silenciosos, aumente `--trace-timeout`. Para redescobrir a rota de tempos
 em tempos, use `--rediscover-every N`.
-Para automação e relatórios, use `--json`, `--export caminho.txt` e `--no-clear`.
+Para automação e relatórios, use `--json`, `--output json`, `--export caminho.txt` e `--no-clear`.
+
+### Exemplos
+
+A pasta `examples/` tem scripts pequenos para servir como ponto de partida:
+
+- `ssh_run_command.py`
+- `sftp_backup.py`
+- `mtr_report.py`
+- `snmp_walk.py`
+- `scan_ports.py`
+
+Antes de publicar uma versão, rode:
+
+```bash
+python scripts/release_check.py
+```
 
 ### HTTP e FTP
 
@@ -406,30 +441,49 @@ Telnet does not pull extra runtime dependencies. SSH uses `cryptography` through
 the `ssh` extra. Paramiko is test-only and is used to run a local SSH server for
 integration tests.
 
-Current development version: `0.1.8`.
+Current development version: `0.1.9`.
+
+### Module Status
+
+| Area | Status | Interface |
+|---|---|---|
+| SSH/Telnet | basic usage | Python API and CLI |
+| Ping/scan/traceroute | basic usage | Python API and CLI |
+| MTR | basic live table | Python API and CLI |
+| SNMP v2c GET/WALK | basic usage | Python API and CLI |
+| SFTP | basic file operations | Python API and CLI |
+| HTTP/FTP | small client | Python API |
 
 Basic CLI:
 
 ```bash
 maxconn --version
+maxconn selftest
 maxconn ping 192.0.2.1
+maxconn ping 192.0.2.1 --output json --export ping.json
 maxconn scan 192.0.2.1 --ports 22,23,80,443
+maxconn scan 192.0.2.1 --ports 22,80,443 --json
 maxconn traceroute 8.8.8.8
+maxconn traceroute 8.8.8.8 --output json
 maxconn mtr 8.8.8.8
 maxconn mtr 8.8.8.8 --count 5 --interval 1
 maxconn mtr 8.8.8.8 --rediscover-every 30
 maxconn mtr 8.8.8.8 --count 5 --json
+maxconn mtr 8.8.8.8 --count 5 --output json
 maxconn mtr 8.8.8.8 --count 5 --export mtr-report.txt --no-clear
 maxconn sftp ls 192.0.2.10 /configs --username admin --password secret
 maxconn sftp get 192.0.2.10 /remote/startup.cfg ./startup.cfg --username admin --password secret
 maxconn sftp put 192.0.2.10 ./backup.cfg /remote/backup.cfg --username admin --password secret
 maxconn sftp stat 192.0.2.10 /remote/startup.cfg --username admin --password secret
+maxconn sftp stat 192.0.2.10 /remote/startup.cfg --username admin --password secret --json
 maxconn sftp mkdir 192.0.2.10 /remote/new-folder --username admin --password secret
 maxconn sftp rm 192.0.2.10 /remote/old.cfg --username admin --password secret
 maxconn sftp rename 192.0.2.10 /remote/a.cfg /remote/b.cfg --username admin --password secret
 maxconn doctor
 maxconn snmp get 192.0.2.1 1.3.6.1.2.1.1.5.0 --community public
+maxconn snmp get 192.0.2.1 1.3.6.1.2.1.1.5.0 --community public --json --retries 2
 maxconn snmp walk 192.0.2.1 1.3.6.1.2.1.1 --community public
+maxconn snmp walk 192.0.2.1 1.3.6.1.2.1.1 --community public --output json
 maxconn ssh 192.0.2.10 --username admin --password secret --command "show version"
 maxconn telnet 192.0.2.20 --username admin --password secret --command "show status"
 ```
@@ -559,7 +613,23 @@ By default the route is discovered once and known hops are measured every round,
 which makes refreshes closer to WinMTR. On networks with many silent hops,
 increase `--trace-timeout`. To refresh the route periodically, use
 `--rediscover-every N`.
-For automation and reports, use `--json`, `--export path.txt`, and `--no-clear`.
+For automation and reports, use `--json`, `--output json`, `--export path.txt`, and `--no-clear`.
+
+### Examples
+
+The `examples/` folder has small scripts that can be used as starting points:
+
+- `ssh_run_command.py`
+- `sftp_backup.py`
+- `mtr_report.py`
+- `snmp_walk.py`
+- `scan_ports.py`
+
+Before publishing a version, run:
+
+```bash
+python scripts/release_check.py
+```
 
 ### HTTP and FTP
 
