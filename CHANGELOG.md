@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.1.9 - 2026-08-12
+
+- Add JSON/export output to `ping`, `scan`, `traceroute`, `snmp get`, `snmp walk`, and `sftp stat`.
+- Add `--output json` aliases while keeping existing `--json` flags.
+- Add `maxconn selftest` for quick local CLI checks.
+- Add retry support for SNMP CLI calls and ping attempt aliases.
+- Improve CLI help text and user-facing error messages.
+- Add release check tooling and practical example scripts.
+
 ## 0.1.8 - 2026-08-12
 
 - Add `maxconn sftp stat`, `mkdir`, `rm`, and `rename`.
