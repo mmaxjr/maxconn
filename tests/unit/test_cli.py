@@ -53,7 +53,7 @@ def test_cli_prints_package_version(capsys):
     exit_code = maxconn.cli.main(["--version"])
 
     assert exit_code == 0
-    assert "maxconn 0.1.7" in capsys.readouterr().out
+    assert "maxconn 0.1.8" in capsys.readouterr().out
 
 
 def test_cli_prints_package_version_from_sys_argv(monkeypatch, capsys):
@@ -62,7 +62,7 @@ def test_cli_prints_package_version_from_sys_argv(monkeypatch, capsys):
     exit_code = maxconn.cli.main()
 
     assert exit_code == 0
-    assert "maxconn 0.1.7" in capsys.readouterr().out
+    assert "maxconn 0.1.8" in capsys.readouterr().out
 
 
 def test_cli_ping_prints_reachable_status(monkeypatch, capsys):
@@ -142,11 +142,15 @@ def test_cli_mtr_prints_summary(monkeypatch, capsys):
         trace_timeout=30.0,
         rediscover_every=None,
         interval=1.0,
+        output="table",
+        clear=True,
     ):
         assert count == 5
         assert trace_timeout == 30.0
         assert rediscover_every is None
         assert interval == 0.0
+        assert output == "table"
+        assert clear is True
         return (
             "Hostname                         Nr  Loss%  Sent  Recv  Best  Avg   Worst  Last\n"
             "192.0.2.1                        1   20     5     4     10    15    20     18"
@@ -163,6 +167,54 @@ def test_cli_mtr_prints_summary(monkeypatch, capsys):
     assert "Hostname" in output
     assert "Loss%" in output
     assert "192.0.2.1" in output
+
+
+def test_cli_mtr_can_print_json(monkeypatch, capsys):
+    def fake_run_mtr_table(
+        host,
+        count=None,
+        timeout=1.0,
+        trace_timeout=30.0,
+        rediscover_every=None,
+        interval=1.0,
+        output="table",
+        clear=True,
+    ):
+        assert output == "json"
+        return '{"hops": []}'
+
+    monkeypatch.setattr(maxconn.cli, "run_mtr_table", fake_run_mtr_table)
+
+    exit_code = maxconn.cli.main(["mtr", "192.0.2.1", "--count", "1", "--json"])
+
+    assert exit_code == 0
+    assert '{"hops": []}' in capsys.readouterr().out
+
+
+def test_cli_mtr_can_export_output(monkeypatch, tmp_path):
+    export_path = tmp_path / "mtr.txt"
+
+    def fake_run_mtr_table(
+        host,
+        count=None,
+        timeout=1.0,
+        trace_timeout=30.0,
+        rediscover_every=None,
+        interval=1.0,
+        output="table",
+        clear=True,
+    ):
+        assert clear is False
+        return "mtr report"
+
+    monkeypatch.setattr(maxconn.cli, "run_mtr_table", fake_run_mtr_table)
+
+    exit_code = maxconn.cli.main(
+        ["mtr", "192.0.2.1", "--count", "1", "--export", str(export_path), "--no-clear"]
+    )
+
+    assert exit_code == 0
+    assert export_path.read_text() == "mtr report"
 
 
 def test_cli_snmp_get_prints_value(monkeypatch, capsys):
@@ -298,3 +350,73 @@ def test_cli_sftp_put_uploads_file(monkeypatch, tmp_path):
 
     assert exit_code == 0
     assert calls == [(str(source), "/remote/startup.cfg")]
+
+
+def test_cli_sftp_stat_prints_size(monkeypatch, capsys):
+    class Attrs:
+        size = 4096
+        permissions = 0o644
+
+    class Client:
+        def stat(self, path):
+            assert path == "/remote/startup.cfg"
+            return Attrs()
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(maxconn.cli.maxconn, "connect_sftp", lambda host, **kwargs: Client())
+
+    exit_code = maxconn.cli.main(
+        ["sftp", "stat", "192.0.2.10", "/remote/startup.cfg", "--username", "admin"]
+    )
+
+    assert exit_code == 0
+    output = capsys.readouterr().out
+    assert "size=4096" in output
+    assert "permissions=0o644" in output
+
+
+def test_cli_sftp_mkdir_rm_and_rename_call_client(monkeypatch):
+    calls = []
+
+    class Client:
+        def mkdir(self, path):
+            calls.append(("mkdir", path))
+
+        def remove(self, path):
+            calls.append(("remove", path))
+
+        def rename(self, old_path, new_path):
+            calls.append(("rename", old_path, new_path))
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(maxconn.cli.maxconn, "connect_sftp", lambda host, **kwargs: Client())
+
+    assert maxconn.cli.main(["sftp", "mkdir", "192.0.2.10", "/new", "--username", "admin"]) == 0
+    assert maxconn.cli.main(["sftp", "rm", "192.0.2.10", "/old.cfg", "--username", "admin"]) == 0
+    assert (
+        maxconn.cli.main(
+            ["sftp", "rename", "192.0.2.10", "/a.cfg", "/b.cfg", "--username", "admin"]
+        )
+        == 0
+    )
+
+    assert calls == [
+        ("mkdir", "/new"),
+        ("remove", "/old.cfg"),
+        ("rename", "/a.cfg", "/b.cfg"),
+    ]
+
+
+def test_cli_doctor_prints_environment(capsys):
+    exit_code = maxconn.cli.main(["doctor"])
+
+    assert exit_code == 0
+    output = capsys.readouterr().out
+    assert "maxconn=" in output
+    assert "python=" in output
+    assert "platform=" in output
+    assert "ping=" in output
