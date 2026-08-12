@@ -132,6 +132,7 @@ def main(argv: list[str] | None = None) -> int:
 
     subparsers.add_parser("doctor", help="print local environment diagnostics")
     subparsers.add_parser("selftest", help="run quick local CLI checks")
+    subparsers.add_parser("start", help="launch the interactive maxconn shell")
 
     traceroute_command = subparsers.add_parser("traceroute", help="show network path to a host")
     traceroute_command.add_argument("host")
@@ -265,6 +266,11 @@ def main(argv: list[str] | None = None) -> int:
             print("json=ok")
             print("cli=ok")
             return 0
+
+        if args.protocol == "start":
+            from maxconn.ui.shell import main as shell_main
+
+            return shell_main()
 
         if args.protocol == "traceroute":
             result = maxconn.traceroute(args.host, timeout=args.timeout)
