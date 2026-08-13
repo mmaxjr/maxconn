@@ -3,6 +3,7 @@ import json
 import maxconn.cli
 from maxconn.exceptions import ProtocolError
 from maxconn.hosts import HostEntry, HostStore
+from maxconn.ui.theme import get_theme
 
 
 class FakeResult:
@@ -217,6 +218,29 @@ def test_cli_interactive_session_uses_device_prompt(monkeypatch, capsys):
     assert "bgp_view@lg.sp.itx.br> " in connection.prompts
 
 
+def test_cli_interactive_session_uses_saved_theme_for_device_prompt(monkeypatch, capsys):
+    inputs = iter(["exit"])
+    connection = FakePromptConnection()
+
+    monkeypatch.setattr(maxconn.cli, "_interactive_input", lambda prompt: connection.prompts.append(prompt) or next(inputs))
+    monkeypatch.setattr(maxconn.cli, "_interactive_theme", lambda: (get_theme("matrix"), True))
+
+    exit_code = maxconn.cli._run_interactive_connection(
+        connection,
+        label="bgp-view",
+        host="177.84.161.226",
+        protocol="ssh",
+        prompt_markers=(">", "#"),
+        timeout=10.0,
+    )
+
+    output = capsys.readouterr().out
+    assert exit_code == 0
+    assert "\x1b[" in output
+    assert "\x1b[" in connection.prompts[0]
+    assert "bgp_view@lg.sp.itx.br>" in connection.prompts[0]
+
+
 def test_cli_ssh_save_records_host_and_recent(monkeypatch, tmp_path):
     store = HostStore(base_dir=tmp_path)
 
@@ -282,7 +306,7 @@ def test_cli_prints_package_version(capsys):
     exit_code = maxconn.cli.main(["--version"])
 
     assert exit_code == 0
-    assert "maxconn 0.1.14" in capsys.readouterr().out
+    assert "maxconn 0.1.15" in capsys.readouterr().out
 
 
 def test_cli_prints_package_version_from_sys_argv(monkeypatch, capsys):
@@ -291,7 +315,7 @@ def test_cli_prints_package_version_from_sys_argv(monkeypatch, capsys):
     exit_code = maxconn.cli.main()
 
     assert exit_code == 0
-    assert "maxconn 0.1.14" in capsys.readouterr().out
+    assert "maxconn 0.1.15" in capsys.readouterr().out
 
 
 def test_cli_ping_prints_reachable_status(monkeypatch, capsys):

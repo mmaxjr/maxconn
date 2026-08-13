@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.15 - 2026-08-13
+
+- Keep the saved `maxconn start` theme around interactive SSH/Telnet device sessions.
+- Render interactive connection status and device prompts with the current theme.
+- Preserve raw device output while styling only MaxConn-owned terminal text.
+
 ## 0.1.14 - 2026-08-13
 
 - Add SSH `ecdh-sha2-nistp256` key exchange compatibility.
