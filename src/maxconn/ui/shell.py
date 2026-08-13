@@ -48,6 +48,17 @@ def render_banner(theme, color_enabled: bool) -> None:
 CONTINUE = "continue"
 RESTART = "restart"
 EXIT = "exit"
+CLI_COMMANDS = {
+    "hosts",
+    "ping",
+    "scan",
+    "doctor",
+    "selftest",
+    "traceroute",
+    "mtr",
+    "sftp",
+    "snmp",
+}
 
 
 def _host_store() -> HostStore:
@@ -125,6 +136,10 @@ def run_command(name: str, args: list[str], theme, color_enabled: bool, line: st
             print(theme.error.render(str(exc), enabled=color_enabled))
             return CONTINUE
         _run_maxconn_cli_safe([saved.protocol, args[0], *args[1:]], theme, color_enabled)
+        return CONTINUE
+
+    if name in CLI_COMMANDS:
+        _run_maxconn_cli_safe([name, *args], theme, color_enabled)
         return CONTINUE
 
     if name in COMMANDS:

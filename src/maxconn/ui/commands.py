@@ -1,14 +1,15 @@
 from __future__ import annotations
 
 COMMANDS: dict[str, str] = {
+    "hosts": "manage local saved hosts",
     "ping": "probe host reachability",
     "scan": "scan tcp ports",
+    "doctor": "print local environment diagnostics",
+    "selftest": "run quick local CLI checks",
     "traceroute": "show network path to a host",
     "mtr": "live path monitoring",
-    "inventory": "list known devices",
-    "backup": "backup device configuration",
-    "diff": "compare two backups",
-    "discover": "scan a subnet for devices",
+    "sftp": "copy and manage files over SFTP",
+    "snmp": "read SNMP v2c values",
     "connect": "open a session with a device",
     "open": "open a saved host in an interactive session",
     "ssh": "open an interactive SSH session",

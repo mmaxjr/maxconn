@@ -87,3 +87,36 @@ def test_shell_open_uses_saved_host_protocol(monkeypatch, tmp_path):
 
     assert signal == shell.CONTINUE
     assert calls == [["telnet", "olt-telnet"]]
+
+
+def test_shell_help_does_not_show_preview_only_commands(capsys):
+    signal = shell.run_command(
+        "help",
+        [],
+        get_theme("plain"),
+        False,
+        "help",
+    )
+
+    output = capsys.readouterr().out
+    assert signal == shell.CONTINUE
+    assert "discover" not in output
+    assert "backup" not in output
+    assert "diff" not in output
+    assert "inventory" not in output
+
+
+def test_shell_dispatches_real_cli_commands(monkeypatch):
+    calls = []
+    monkeypatch.setattr(shell, "_run_maxconn_cli", lambda argv: calls.append(argv) or 0)
+
+    signal = shell.run_command(
+        "hosts",
+        ["list"],
+        get_theme("plain"),
+        False,
+        "hosts list",
+    )
+
+    assert signal == shell.CONTINUE
+    assert calls == [["hosts", "list"]]
