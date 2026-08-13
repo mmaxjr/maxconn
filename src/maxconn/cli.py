@@ -102,6 +102,13 @@ def _run_with_retries(operation: Callable[[], Any], *, attempts: int) -> Any:
     raise last_error
 
 
+def _split_username_host(value: str) -> tuple[str | None, str]:
+    username, separator, host = value.partition("@")
+    if separator and username and host:
+        return username, host
+    return None, value
+
+
 def _ping_payload(result: Any) -> dict[str, Any]:
     return {
         "host": result.host,
@@ -500,9 +507,10 @@ def main(argv: list[str] | None = None) -> int:
 
         prompt_markers = tuple(args.prompt) if args.prompt else (">", "#")
         store = _host_store()
-        resolved_host = args.host
+        inline_username, inline_host = _split_username_host(args.host)
+        resolved_host = inline_host
         resolved_port = args.port
-        resolved_username = args.username
+        resolved_username = args.username or inline_username
         resolved_password = getpass.getpass("Password: ") if args.ask_password else args.password
         try:
             saved_host = store.get(args.host)

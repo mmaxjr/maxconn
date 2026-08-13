@@ -14,17 +14,25 @@ from maxconn.exceptions import ProtocolError
 from maxconn.transport.ssh import messages
 from maxconn.transport.ssh.wire import Reader, encode_name_list, encode_uint32
 
-KEX_ALGORITHMS = ["diffie-hellman-group14-sha256"]
+KEX_ALGORITHMS = ["ecdh-sha2-nistp256", "diffie-hellman-group14-sha256", "diffie-hellman-group14-sha1"]
 # "rsa-sha2-256" (RFC 8332) is the modern SHA-256-based signature scheme for
 # RSA host keys; plain "ssh-rsa" (SHA-1) is offered only as a fallback for
 # older servers, since most current implementations reject SHA-1 signatures.
-SERVER_HOST_KEY_ALGORITHMS = ["rsa-sha2-256", "ssh-rsa"]
+SERVER_HOST_KEY_ALGORITHMS = ["ecdsa-sha2-nistp256", "rsa-sha2-256", "rsa-sha2-512", "ssh-rsa"]
 ENCRYPTION_ALGORITHMS = ["aes128-ctr"]
-MAC_ALGORITHMS = ["hmac-sha2-256"]
+MAC_ALGORITHMS = ["hmac-sha2-256", "hmac-sha1"]
 COMPRESSION_ALGORITHMS = ["none"]
 
 
-def build_kexinit(cookie: bytes | None = None) -> bytes:
+def build_kexinit(
+    cookie: bytes | None = None,
+    *,
+    kex_algorithms: list[str] | None = None,
+    server_host_key_algorithms: list[str] | None = None,
+    encryption_algorithms: list[str] | None = None,
+    mac_algorithms: list[str] | None = None,
+    compression_algorithms: list[str] | None = None,
+) -> bytes:
     if cookie is None:
         cookie = os.urandom(16)
     elif len(cookie) != 16:
@@ -33,14 +41,14 @@ def build_kexinit(cookie: bytes | None = None) -> bytes:
     parts = [
         bytes([messages.SSH_MSG_KEXINIT]),
         cookie,
-        encode_name_list(KEX_ALGORITHMS),
-        encode_name_list(SERVER_HOST_KEY_ALGORITHMS),
-        encode_name_list(ENCRYPTION_ALGORITHMS),
-        encode_name_list(ENCRYPTION_ALGORITHMS),
-        encode_name_list(MAC_ALGORITHMS),
-        encode_name_list(MAC_ALGORITHMS),
-        encode_name_list(COMPRESSION_ALGORITHMS),
-        encode_name_list(COMPRESSION_ALGORITHMS),
+        encode_name_list(kex_algorithms or KEX_ALGORITHMS),
+        encode_name_list(server_host_key_algorithms or SERVER_HOST_KEY_ALGORITHMS),
+        encode_name_list(encryption_algorithms or ENCRYPTION_ALGORITHMS),
+        encode_name_list(encryption_algorithms or ENCRYPTION_ALGORITHMS),
+        encode_name_list(mac_algorithms or MAC_ALGORITHMS),
+        encode_name_list(mac_algorithms or MAC_ALGORITHMS),
+        encode_name_list(compression_algorithms or COMPRESSION_ALGORITHMS),
+        encode_name_list(compression_algorithms or COMPRESSION_ALGORITHMS),
         encode_name_list([]),
         encode_name_list([]),
         bytes([0]),  # first_kex_packet_follows: we never guess-send a kex packet early
