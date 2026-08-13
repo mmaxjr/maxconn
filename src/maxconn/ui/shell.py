@@ -54,6 +54,7 @@ CLI_COMMANDS = {
     "scan",
     "doctor",
     "selftest",
+    "discover",
     "traceroute",
     "mtr",
     "sftp",

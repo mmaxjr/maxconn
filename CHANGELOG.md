@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.18 - 2026-08-13
+
+- Add `maxconn discover NETWORK/CIDR` for subnet TCP discovery.
+- Use common network ports by default, including HTTP `80` and HTTPS `443`.
+- Add `--ports`, `--timeout`, `--workers`, `--json`, and `--export` for discovery scans.
+
 ## 0.1.17 - 2026-08-13
 
 - Remove preview-only future commands from `maxconn start` help/completion.

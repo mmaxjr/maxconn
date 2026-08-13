@@ -6,6 +6,7 @@ COMMANDS: dict[str, str] = {
     "scan": "scan tcp ports",
     "doctor": "print local environment diagnostics",
     "selftest": "run quick local CLI checks",
+    "discover": "scan a subnet for devices",
     "traceroute": "show network path to a host",
     "mtr": "live path monitoring",
     "sftp": "copy and manage files over SFTP",

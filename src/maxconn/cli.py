@@ -145,6 +145,21 @@ def _scan_payload(host: str, results: list[Any]) -> dict[str, Any]:
     }
 
 
+def _discover_payload(network: str, results: list[Any]) -> dict[str, Any]:
+    return {
+        "network": network,
+        "hosts": [
+            {
+                "host": result.host,
+                "reachable": result.reachable,
+                "open_ports": result.open_ports,
+                "scanned_ports": result.scanned_ports,
+            }
+            for result in results
+        ],
+    }
+
+
 def _traceroute_payload(result: Any) -> dict[str, Any]:
     return {
         "host": result.host,
@@ -237,6 +252,20 @@ def main(argv: list[str] | None = None) -> int:
     scan_command.add_argument("--json", action="store_true", help="print JSON output")
     scan_command.add_argument("--output", choices=("text", "json"), default="text")
     scan_command.add_argument("--export", help="write the rendered output to a file")
+
+    discover_command = subparsers.add_parser("discover", help="scan a subnet for devices")
+    discover_command.add_argument("network")
+    discover_command.add_argument(
+        "--ports",
+        default=",".join(str(port) for port in maxconn.DEFAULT_DISCOVER_PORTS),
+        help="comma-separated TCP ports to test",
+    )
+    discover_command.add_argument("--timeout", type=float, default=1.0)
+    discover_command.add_argument("--concurrency", type=int, default=32)
+    discover_command.add_argument("--workers", type=int, default=64)
+    discover_command.add_argument("--json", action="store_true", help="print JSON output")
+    discover_command.add_argument("--output", choices=("text", "json"), default="text")
+    discover_command.add_argument("--export", help="write the rendered output to a file")
 
     subparsers.add_parser("doctor", help="print local environment diagnostics")
     subparsers.add_parser("selftest", help="run quick local CLI checks")
@@ -397,6 +426,26 @@ def main(argv: list[str] | None = None) -> int:
                 lines.append(f"{result.port} {status} ({result.elapsed:.3f}s)")
             _write_output("\n".join(lines), args.export)
             return 0 if any(result.open for result in results) else 1
+
+        if args.protocol == "discover":
+            ports = _parse_ports(args.ports)
+            results = maxconn.discover(
+                args.network,
+                ports=ports,
+                timeout=args.timeout,
+                concurrency=args.concurrency,
+                workers=args.workers,
+            )
+            if _is_json_output(args):
+                _json_output(_discover_payload(args.network, results), args.export)
+                return 0 if any(result.reachable for result in results) else 1
+            lines = ["HOST           STATUS      OPEN_PORTS"]
+            for result in results:
+                status = "open" if result.reachable else "closed"
+                open_ports = ",".join(str(port) for port in result.open_ports) or "-"
+                lines.append(f"{result.host:<14} {status:<11} {open_ports}")
+            _write_output("\n".join(lines), args.export)
+            return 0 if any(result.reachable for result in results) else 1
 
         if args.protocol == "doctor":
             tools = {
