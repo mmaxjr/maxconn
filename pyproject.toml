@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "maxconn"
-version = "0.1.15"
+version = "0.1.16"
 description = "Python toolkit for network and infrastructure automation, starting with raw-socket SSH and Telnet."
 readme = "README.md"
 requires-python = ">=3.10"

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.16 - 2026-08-13
+
+- Avoid repeated line redraws when pasting long commands into `maxconn start`.
+- Allow `maxconn hosts add --password ... --save-password` to save a password explicitly.
+- Allow `maxconn hosts add --ask-password --save-password` for prompted password saving.
+
 ## 0.1.15 - 2026-08-13
 
 - Keep the saved `maxconn start` theme around interactive SSH/Telnet device sessions.

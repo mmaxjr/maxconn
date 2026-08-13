@@ -44,3 +44,15 @@ def test_read_line_history_entry_can_be_edited_with_arrows(monkeypatch):
     )
 
     assert line == "ssh bgp-vi2ew"
+
+
+def test_read_line_pasted_text_at_end_does_not_redraw_every_character(monkeypatch, capsys):
+    line = _run_keys(
+        monkeypatch,
+        list("maxconn hosts list") + ["\n"],
+    )
+
+    assert line == "maxconn hosts list"
+    output = capsys.readouterr().out
+    assert output.count("maxconn> ") == 1
+    assert "\x1b[2K" not in output

@@ -201,6 +201,9 @@ def main(argv: list[str] | None = None) -> int:
     hosts_add.add_argument("--port", type=int, required=True)
     hosts_add.add_argument("--protocol", choices=("ssh", "telnet"), required=True, dest="host_protocol")
     hosts_add.add_argument("--username")
+    hosts_add.add_argument("--password")
+    hosts_add.add_argument("--save-password", action="store_true")
+    hosts_add.add_argument("--ask-password", action="store_true")
     hosts_add.add_argument("--profile")
     hosts_add.add_argument("--tags")
     hosts_add.add_argument("--notes")
@@ -318,6 +321,14 @@ def main(argv: list[str] | None = None) -> int:
         if args.protocol == "hosts":
             store = _host_store()
             if args.hosts_action == "add":
+                password = getpass.getpass("Password: ") if args.ask_password else args.password
+                password_to_save = password if args.save_password else None
+                if password_to_save:
+                    print(
+                        "Warning: password saved locally in plain text; password saved only because "
+                        "--save-password was used.",
+                        file=sys.stderr,
+                    )
                 store.add(
                     HostEntry(
                         name=args.name,
@@ -328,6 +339,7 @@ def main(argv: list[str] | None = None) -> int:
                         profile=args.profile,
                         tags=parse_tags(args.tags),
                         notes=args.notes,
+                        password=password_to_save,
                     )
                 )
                 print(f"saved host: {args.name}")
