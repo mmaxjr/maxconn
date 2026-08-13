@@ -3,6 +3,8 @@ from __future__ import annotations
 import shlex
 import subprocess
 
+from maxconn.hosts import HostStore
+
 from .caps import configure_stdio, enable_windows_vt, supports_color
 from .commands import ARGUMENT_OPTIONS, COMMANDS
 from .config import load_theme, save_theme
@@ -46,6 +48,16 @@ RESTART = "restart"
 EXIT = "exit"
 
 
+def _host_store() -> HostStore:
+    return HostStore()
+
+
+def _run_maxconn_cli(argv: list[str]) -> int:
+    from maxconn.cli import main as cli_main
+
+    return cli_main(argv)
+
+
 def run_system_command(line: str, theme, color_enabled: bool) -> None:
     """Fall back to the OS shell (cmd/PowerShell on Windows, /bin/sh
     elsewhere) for anything that isn't a maxconn command. Inherits stdio
@@ -83,6 +95,22 @@ def run_command(name: str, args: list[str], theme, color_enabled: bool, line: st
         save_theme(new_name)
         print(theme.ok.render(f"tema alterado para {new_name}, reiniciando...", enabled=color_enabled))
         return RESTART
+
+    if name in {"ssh", "telnet"}:
+        _run_maxconn_cli([name, *args])
+        return CONTINUE
+
+    if name in {"open", "connect"}:
+        if not args:
+            print(theme.warn.render("uso: open <host-salvo>", enabled=color_enabled))
+            return CONTINUE
+        try:
+            saved = _host_store().get(args[0])
+        except KeyError as exc:
+            print(theme.error.render(str(exc), enabled=color_enabled))
+            return CONTINUE
+        _run_maxconn_cli([saved.protocol, args[0], *args[1:]])
+        return CONTINUE
 
     if name in COMMANDS:
         print(theme.muted.render(f"[preview] executaria: {name} {' '.join(args)}", enabled=color_enabled))

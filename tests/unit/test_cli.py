@@ -22,6 +22,27 @@ class FakeConnection:
         self.timeout = timeout
         return FakeResult()
 
+    def read_until(self, marker, timeout=10.0):
+        return ""
+
+
+class FakePromptConnection(FakeConnection):
+    def __init__(self):
+        self.prompts = []
+
+    def read_until(self, marker, timeout=10.0):
+        return "JUNOS 13.3R4.6 built 2014-09-18 15:10:39 UTC\nbgp_view@lg.sp.itx.br>"
+
+    def run(self, command, prompt_markers=None, timeout=None):
+        self.command = command
+        self.prompts.append(prompt_markers)
+
+        class Result:
+            text = "routes...\nbgp_view@lg.sp.itx.br>"
+            ok = True
+
+        return Result()
+
 
 def test_cli_runs_command_and_prints_output(monkeypatch, capsys):
     calls = {}
@@ -80,6 +101,64 @@ def test_cli_ssh_can_resolve_saved_host_alias(monkeypatch, tmp_path, capsys):
     assert calls["host"] == "10.0.0.1"
     assert calls["kwargs"]["username"] == "admin"
     assert calls["kwargs"]["port"] == 22
+
+
+def test_cli_ssh_without_command_opens_interactive_session(monkeypatch, tmp_path, capsys):
+    store = HostStore(base_dir=tmp_path)
+    store.add(
+        HostEntry(
+            name="bgp-view",
+            host="177.84.161.226",
+            port=22,
+            protocol="ssh",
+            username="bgp_view",
+            password="bgp_view",
+        )
+    )
+    inputs = iter(["show version", "exit"])
+    connection = FakeConnection()
+    calls = {}
+
+    def fake_connect(host, **kwargs):
+        calls["host"] = host
+        calls["kwargs"] = kwargs
+        return connection
+
+    monkeypatch.setattr(maxconn.cli, "_host_store", lambda: store)
+    monkeypatch.setattr(maxconn.cli, "_interactive_input", lambda prompt: next(inputs))
+    monkeypatch.setattr(maxconn.cli.maxconn, "connect", fake_connect)
+
+    assert maxconn.cli.main(["ssh", "bgp-view"]) == 0
+
+    output = capsys.readouterr().out
+    assert "connected: bgp-view (177.84.161.226) ssh" in output
+    assert "device output" in output
+    assert connection.command == "show version"
+    assert calls["host"] == "177.84.161.226"
+    assert calls["kwargs"]["password"] == "bgp_view"
+
+
+def test_cli_interactive_session_uses_device_prompt(monkeypatch, capsys):
+    inputs = iter(["show route", "exit"])
+    connection = FakePromptConnection()
+
+    monkeypatch.setattr(maxconn.cli, "_interactive_input", lambda prompt: connection.prompts.append(prompt) or next(inputs))
+
+    exit_code = maxconn.cli._run_interactive_connection(
+        connection,
+        label="bgp-view",
+        host="177.84.161.226",
+        protocol="ssh",
+        prompt_markers=(">", "#"),
+        timeout=10.0,
+    )
+
+    output = capsys.readouterr().out
+    assert exit_code == 0
+    assert "JUNOS 13.3R4.6" in output
+    assert "bgp_view@lg.sp.itx.br>" in output
+    assert "routes..." in output
+    assert "bgp_view@lg.sp.itx.br> " in connection.prompts
 
 
 def test_cli_ssh_save_records_host_and_recent(monkeypatch, tmp_path):
@@ -147,7 +226,7 @@ def test_cli_prints_package_version(capsys):
     exit_code = maxconn.cli.main(["--version"])
 
     assert exit_code == 0
-    assert "maxconn 0.1.10" in capsys.readouterr().out
+    assert "maxconn 0.1.11" in capsys.readouterr().out
 
 
 def test_cli_prints_package_version_from_sys_argv(monkeypatch, capsys):
@@ -156,7 +235,7 @@ def test_cli_prints_package_version_from_sys_argv(monkeypatch, capsys):
     exit_code = maxconn.cli.main()
 
     assert exit_code == 0
-    assert "maxconn 0.1.10" in capsys.readouterr().out
+    assert "maxconn 0.1.11" in capsys.readouterr().out
 
 
 def test_cli_ping_prints_reachable_status(monkeypatch, capsys):

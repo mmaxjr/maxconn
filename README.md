@@ -64,7 +64,7 @@ Telnet não puxa dependências extras. SSH usa `cryptography` pelo extra `ssh`.
 Paramiko fica só nos testes, para subir um servidor SSH local e validar o
 cliente do MAXCONN contra uma implementação independente.
 
-Versão atual em desenvolvimento: `0.1.10`.
+Versão atual em desenvolvimento: `0.1.11`.
 
 ### Status dos módulos
 
@@ -86,7 +86,9 @@ maxconn hosts add olt-01 --host 10.0.0.1 --port 22 --protocol ssh --username adm
 maxconn hosts list
 maxconn hosts recent
 maxconn hosts save-recent 1 --name olt-01 --profile huawei --tags olt
+maxconn ssh olt-01
 maxconn ssh olt-01 --command "display version"
+maxconn start
 maxconn ping 192.0.2.1
 maxconn ping 192.0.2.1 --output json --export ping.json
 maxconn scan 192.0.2.1 --ports 22,23,80,443
@@ -119,6 +121,10 @@ maxconn telnet 192.0.2.20 --username admin --password secret --command "show sta
 Hosts salvos ficam em `~/.maxconn/hosts.json`. Hosts usados recentemente ficam
 em `~/.maxconn/seen_hosts.json`, sem senha. Para salvar senha localmente, use
 `--save-password` de forma explícita; ela não aparece em `hosts list`.
+
+Para entrar no terminal do equipamento, use `maxconn ssh NOME` ou
+`maxconn telnet NOME` sem `--command`. Dentro do terminal visual aberto por
+`maxconn start`, use `ssh NOME`, `telnet NOME` ou `open NOME`.
 
 ### Uso Básico
 
@@ -450,7 +456,7 @@ Telnet does not pull extra runtime dependencies. SSH uses `cryptography` through
 the `ssh` extra. Paramiko is test-only and is used to run a local SSH server for
 integration tests.
 
-Current development version: `0.1.10`.
+Current development version: `0.1.11`.
 
 ### Module Status
 
@@ -472,7 +478,9 @@ maxconn hosts add olt-01 --host 10.0.0.1 --port 22 --protocol ssh --username adm
 maxconn hosts list
 maxconn hosts recent
 maxconn hosts save-recent 1 --name olt-01 --profile huawei --tags olt
+maxconn ssh olt-01
 maxconn ssh olt-01 --command "display version"
+maxconn start
 maxconn ping 192.0.2.1
 maxconn ping 192.0.2.1 --output json --export ping.json
 maxconn scan 192.0.2.1 --ports 22,23,80,443
@@ -505,6 +513,10 @@ maxconn telnet 192.0.2.20 --username admin --password secret --command "show sta
 Saved hosts live in `~/.maxconn/hosts.json`. Recently used hosts live in
 `~/.maxconn/seen_hosts.json`, without passwords. To save a password locally,
 use `--save-password` explicitly; it is not shown in `hosts list`.
+
+To enter a device terminal, run `maxconn ssh NAME` or `maxconn telnet NAME`
+without `--command`. Inside the visual shell opened by `maxconn start`, use
+`ssh NAME`, `telnet NAME`, or `open NAME`.
 
 ### Basic Usage
 
