@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.17 - 2026-08-13
+
+- Remove preview-only future commands from `maxconn start` help/completion.
+- Dispatch real CLI commands such as `hosts`, `sftp`, `snmp`, `doctor`, and `selftest` from inside `maxconn start`.
+
 ## 0.1.16 - 2026-08-13
 
 - Avoid repeated line redraws when pasting long commands into `maxconn start`.
