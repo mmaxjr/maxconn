@@ -35,6 +35,14 @@ def _interactive_input(prompt: str) -> str:
     return input(prompt)
 
 
+def _interactive_theme() -> tuple[Any, bool]:
+    from maxconn.ui.caps import supports_color
+    from maxconn.ui.config import load_theme
+    from maxconn.ui.theme import get_theme
+
+    return get_theme(load_theme() or "plain"), supports_color()
+
+
 def _run_interactive_connection(
     conn: Any,
     *,
@@ -44,8 +52,9 @@ def _run_interactive_connection(
     prompt_markers: tuple[str, ...],
     timeout: float,
 ) -> int:
-    print(f"connected: {label} ({host}) {protocol}")
-    print("type exit or quit to return")
+    theme, color_enabled = _interactive_theme()
+    print(theme.ok.render(f"connected: {label} ({host}) {protocol}", enabled=color_enabled))
+    print(theme.muted.render("type exit or quit to return", enabled=color_enabled))
     device_prompt = f"{label}>"
     try:
         initial_output = conn.read_until(prompt_markers[0], timeout=min(timeout, 3.0))
@@ -56,7 +65,7 @@ def _run_interactive_connection(
         device_prompt = _extract_device_prompt(initial_output, fallback=device_prompt)
     while True:
         try:
-            command = _interactive_input(f"{device_prompt} ").strip()
+            command = _interactive_input(theme.prompt.render(f"{device_prompt} ", enabled=color_enabled)).strip()
         except (EOFError, KeyboardInterrupt):
             print()
             return 0
