@@ -111,8 +111,10 @@ def _print_options(options: list[tuple[str, str]], theme, color_enabled: bool) -
     sys.stdout.flush()
 
 
-def _redraw_line(prompt_text: str, buffer: str) -> None:
+def _redraw_line(prompt_text: str, buffer: str, cursor: int | None = None) -> None:
     sys.stdout.write("\r\x1b[2K" + prompt_text + buffer)
+    if cursor is not None and cursor < len(buffer):
+        sys.stdout.write(f"\x1b[{len(buffer) - cursor}D")
     sys.stdout.flush()
 
 
@@ -129,6 +131,7 @@ def read_line(
     submitted lines first), like a normal shell.
     """
     buffer = ""
+    cursor = 0
     last_was_tab = False
     history = history if history is not None else []
     history_index = len(history)
@@ -155,7 +158,8 @@ def read_line(
                     draft = buffer
                 history_index -= 1
                 buffer = history[history_index]
-                _redraw_line(prompt_text, buffer)
+                cursor = len(buffer)
+                _redraw_line(prompt_text, buffer, cursor)
             last_was_tab = False
             continue
 
@@ -163,19 +167,32 @@ def read_line(
             if history_index < len(history):
                 history_index += 1
                 buffer = draft if history_index == len(history) else history[history_index]
-                _redraw_line(prompt_text, buffer)
+                cursor = len(buffer)
+                _redraw_line(prompt_text, buffer, cursor)
             last_was_tab = False
             continue
 
-        if key in (KEY_LEFT, KEY_RIGHT):
-            # In-line cursor movement isn't implemented yet; ignore for now.
+        if key == KEY_LEFT:
+            if cursor > 0:
+                cursor -= 1
+                sys.stdout.write("\x1b[1D")
+                sys.stdout.flush()
+            last_was_tab = False
+            continue
+
+        if key == KEY_RIGHT:
+            if cursor < len(buffer):
+                cursor += 1
+                sys.stdout.write("\x1b[1C")
+                sys.stdout.flush()
+            last_was_tab = False
             continue
 
         if key in BACKSPACE:
-            if buffer:
-                buffer = buffer[:-1]
-                sys.stdout.write("\b \b")
-                sys.stdout.flush()
+            if cursor > 0:
+                buffer = buffer[: cursor - 1] + buffer[cursor:]
+                cursor -= 1
+                _redraw_line(prompt_text, buffer, cursor)
             last_was_tab = False
             continue
 
@@ -184,15 +201,14 @@ def read_line(
             if len(matches) == 1:
                 token = completer.current_token(buffer)
                 remainder = matches[0][len(token) :]
-                buffer += remainder
-                sys.stdout.write(remainder)
-                sys.stdout.flush()
+                buffer = buffer[:cursor] + remainder + buffer[cursor:]
+                cursor += len(remainder)
+                _redraw_line(prompt_text, buffer, cursor)
                 last_was_tab = False
             elif len(matches) > 1:
                 if last_was_tab:
                     _print_options(completer.describe(buffer), theme, color_enabled)
-                    sys.stdout.write(prompt_text + buffer)
-                    sys.stdout.flush()
+                    _redraw_line(prompt_text, buffer, cursor)
                     last_was_tab = False
                 else:
                     last_was_tab = True
@@ -206,7 +222,7 @@ def read_line(
             last_was_tab = False
             continue
 
-        buffer += key
-        sys.stdout.write(key)
-        sys.stdout.flush()
+        buffer = buffer[:cursor] + key + buffer[cursor:]
+        cursor += len(key)
+        _redraw_line(prompt_text, buffer, cursor)
         last_was_tab = False

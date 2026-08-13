@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.13 - 2026-08-13
+
+- Add left/right cursor movement inside `maxconn start`.
+- Allow editing recalled history commands before pressing Enter.
+- Keep insertion, backspace, Tab completion, and `?` help working with the line cursor.
+
 ## 0.1.12 - 2026-08-13
 
 - Keep `maxconn start` running when SSH/Telnet connection setup fails.
