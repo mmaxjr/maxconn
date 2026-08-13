@@ -566,7 +566,7 @@ def main(argv: list[str] | None = None) -> int:
             result = conn.run(args.command, prompt_markers=prompt_markers, timeout=args.timeout)
             print(result.text, end="" if result.text.endswith("\n") else "\n")
             return 0 if result.ok else 1
-    except (OSError, TimeoutError, ValueError) as exc:
+    except (MaxConnError, OSError, TimeoutError, ValueError) as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return 1
 
