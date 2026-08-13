@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.12 - 2026-08-13
+
+- Keep `maxconn start` running when SSH/Telnet connection setup fails.
+- Print clean connection errors instead of Python tracebacks for MaxConn protocol failures.
+- Show a short usage hint for `ssh` or `telnet` with no host inside the interactive shell.
+
 ## 0.1.11 - 2026-08-13
 
 - Allow `maxconn ssh HOST` and `maxconn telnet HOST` to open an interactive line-by-line device terminal.

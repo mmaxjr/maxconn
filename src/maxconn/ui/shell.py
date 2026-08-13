@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import shlex
 import subprocess
+import sys
 
+from maxconn.exceptions import MaxConnError
 from maxconn.hosts import HostStore
 
 from .caps import configure_stdio, enable_windows_vt, supports_color
@@ -58,6 +60,16 @@ def _run_maxconn_cli(argv: list[str]) -> int:
     return cli_main(argv)
 
 
+def _run_maxconn_cli_safe(argv: list[str], theme, color_enabled: bool) -> int:
+    try:
+        return _run_maxconn_cli(argv)
+    except SystemExit as exc:
+        return int(exc.code or 0) if isinstance(exc.code, int) else 1
+    except (MaxConnError, OSError, TimeoutError, ValueError) as exc:
+        print(theme.error.render(f"Error: {exc}", enabled=color_enabled), file=sys.stderr)
+        return 1
+
+
 def run_system_command(line: str, theme, color_enabled: bool) -> None:
     """Fall back to the OS shell (cmd/PowerShell on Windows, /bin/sh
     elsewhere) for anything that isn't a maxconn command. Inherits stdio
@@ -97,7 +109,10 @@ def run_command(name: str, args: list[str], theme, color_enabled: bool, line: st
         return RESTART
 
     if name in {"ssh", "telnet"}:
-        _run_maxconn_cli([name, *args])
+        if not args:
+            print(theme.warn.render(f"uso: {name} <host-salvo|host> [opções]", enabled=color_enabled))
+            return CONTINUE
+        _run_maxconn_cli_safe([name, *args], theme, color_enabled)
         return CONTINUE
 
     if name in {"open", "connect"}:
@@ -109,7 +124,7 @@ def run_command(name: str, args: list[str], theme, color_enabled: bool, line: st
         except KeyError as exc:
             print(theme.error.render(str(exc), enabled=color_enabled))
             return CONTINUE
-        _run_maxconn_cli([saved.protocol, args[0], *args[1:]])
+        _run_maxconn_cli_safe([saved.protocol, args[0], *args[1:]], theme, color_enabled)
         return CONTINUE
 
     if name in COMMANDS:

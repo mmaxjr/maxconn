@@ -1,6 +1,7 @@
 import json
 
 import maxconn.cli
+from maxconn.exceptions import ProtocolError
 from maxconn.hosts import HostEntry, HostStore
 
 
@@ -112,7 +113,7 @@ def test_cli_ssh_without_command_opens_interactive_session(monkeypatch, tmp_path
             port=22,
             protocol="ssh",
             username="bgp_view",
-            password="bgp_view",
+            password="public-view-password",
         )
     )
     inputs = iter(["show version", "exit"])
@@ -135,7 +136,33 @@ def test_cli_ssh_without_command_opens_interactive_session(monkeypatch, tmp_path
     assert "device output" in output
     assert connection.command == "show version"
     assert calls["host"] == "177.84.161.226"
-    assert calls["kwargs"]["password"] == "bgp_view"
+    assert calls["kwargs"]["password"] == "public-view-password"
+
+
+def test_cli_prints_clean_error_when_connection_protocol_fails(monkeypatch, tmp_path, capsys):
+    store = HostStore(base_dir=tmp_path)
+    store.add(
+        HostEntry(
+            name="bgp-view",
+            host="177.84.161.226",
+            port=22,
+            protocol="ssh",
+            username="bgp_view",
+            password="public-view-password",
+        )
+    )
+
+    def fake_connect(host, **kwargs):
+        raise ProtocolError("Connection closed by remote host")
+
+    monkeypatch.setattr(maxconn.cli, "_host_store", lambda: store)
+    monkeypatch.setattr(maxconn.cli.maxconn, "connect", fake_connect)
+
+    assert maxconn.cli.main(["ssh", "bgp-view"]) == 1
+
+    captured = capsys.readouterr()
+    assert "Error: Connection closed by remote host" in captured.err
+    assert "Traceback" not in captured.err
 
 
 def test_cli_interactive_session_uses_device_prompt(monkeypatch, capsys):
@@ -226,7 +253,7 @@ def test_cli_prints_package_version(capsys):
     exit_code = maxconn.cli.main(["--version"])
 
     assert exit_code == 0
-    assert "maxconn 0.1.11" in capsys.readouterr().out
+    assert "maxconn 0.1.12" in capsys.readouterr().out
 
 
 def test_cli_prints_package_version_from_sys_argv(monkeypatch, capsys):
@@ -235,7 +262,7 @@ def test_cli_prints_package_version_from_sys_argv(monkeypatch, capsys):
     exit_code = maxconn.cli.main()
 
     assert exit_code == 0
-    assert "maxconn 0.1.11" in capsys.readouterr().out
+    assert "maxconn 0.1.12" in capsys.readouterr().out
 
 
 def test_cli_ping_prints_reachable_status(monkeypatch, capsys):

@@ -25,6 +25,40 @@ def test_shell_ssh_dispatches_to_maxconn_cli(monkeypatch):
     assert calls == [["ssh", "bgp-view"]]
 
 
+def test_shell_ssh_without_host_prints_usage(capsys):
+    signal = shell.run_command(
+        "ssh",
+        [],
+        get_theme("plain"),
+        False,
+        "ssh",
+    )
+
+    assert signal == shell.CONTINUE
+    assert "uso: ssh <host-salvo|host>" in capsys.readouterr().out
+
+
+def test_shell_keeps_running_when_cli_connection_fails(monkeypatch, capsys):
+    from maxconn.exceptions import ProtocolError
+
+    def fake_main(argv):
+        raise ProtocolError("Connection closed by remote host")
+
+    monkeypatch.setattr(shell, "_run_maxconn_cli", fake_main)
+
+    signal = shell.run_command(
+        "ssh",
+        ["bgp-view"],
+        get_theme("plain"),
+        False,
+        "ssh bgp-view",
+    )
+
+    captured = capsys.readouterr()
+    assert signal == shell.CONTINUE
+    assert "Error: Connection closed by remote host" in captured.err
+
+
 def test_shell_open_uses_saved_host_protocol(monkeypatch, tmp_path):
     from maxconn.hosts import HostEntry, HostStore
 
