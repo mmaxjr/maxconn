@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import getpass
 import json
 import platform
 import shutil
@@ -10,12 +11,23 @@ from pathlib import Path
 from typing import Any
 
 import maxconn
+from maxconn.hosts import (
+    HostEntry,
+    HostStore,
+    format_hosts_table,
+    format_seen_hosts_table,
+    parse_tags,
+)
 from maxconn.net.mtr import run_mtr_table
 from maxconn.protocol.snmp import SNMPClient
 
 
 def _parse_ports(raw: str) -> list[int]:
     return [int(part.strip()) for part in raw.split(",") if part.strip()]
+
+
+def _host_store() -> HostStore:
+    return HostStore()
 
 
 def _is_json_output(args: argparse.Namespace) -> bool:
@@ -105,12 +117,42 @@ def main(argv: list[str] | None = None) -> int:
     for protocol in ("ssh", "telnet"):
         command = subparsers.add_parser(protocol, help=f"run a command over {protocol.upper()}")
         command.add_argument("host")
-        command.add_argument("--username", required=True)
+        command.add_argument("--username")
         command.add_argument("--password")
         command.add_argument("--port", type=int)
         command.add_argument("--command", required=True)
         command.add_argument("--timeout", type=float, default=10.0)
         command.add_argument("--prompt", action="append", default=None)
+        command.add_argument("--profile")
+        command.add_argument("--tags")
+        command.add_argument("--notes")
+        command.add_argument("--save", metavar="NAME", help="save this connection as a local host")
+        command.add_argument("--save-password", action="store_true")
+        command.add_argument("--ask-password", action="store_true")
+
+    hosts_command = subparsers.add_parser("hosts", help="manage local saved hosts")
+    hosts_subcommands = hosts_command.add_subparsers(dest="hosts_action", required=True)
+    hosts_add = hosts_subcommands.add_parser("add", help="save a local host entry")
+    hosts_add.add_argument("name")
+    hosts_add.add_argument("--host", required=True)
+    hosts_add.add_argument("--port", type=int, required=True)
+    hosts_add.add_argument("--protocol", choices=("ssh", "telnet"), required=True, dest="host_protocol")
+    hosts_add.add_argument("--username")
+    hosts_add.add_argument("--profile")
+    hosts_add.add_argument("--tags")
+    hosts_add.add_argument("--notes")
+    hosts_subcommands.add_parser("list", help="list saved hosts")
+    hosts_show = hosts_subcommands.add_parser("show", help="show one saved host")
+    hosts_show.add_argument("name")
+    hosts_remove = hosts_subcommands.add_parser("remove", help="remove one saved host")
+    hosts_remove.add_argument("name")
+    hosts_subcommands.add_parser("recent", help="list recently used hosts")
+    hosts_save_recent = hosts_subcommands.add_parser("save-recent", help="save a recently used host")
+    hosts_save_recent.add_argument("id", type=int)
+    hosts_save_recent.add_argument("--name", required=True)
+    hosts_save_recent.add_argument("--profile")
+    hosts_save_recent.add_argument("--tags")
+    hosts_save_recent.add_argument("--notes")
 
     ping_command = subparsers.add_parser("ping", help="probe host reachability")
     ping_command.add_argument("host")
@@ -210,6 +252,47 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         args = parser.parse_args(resolved_argv)
+        if args.protocol == "hosts":
+            store = _host_store()
+            if args.hosts_action == "add":
+                store.add(
+                    HostEntry(
+                        name=args.name,
+                        host=args.host,
+                        port=args.port,
+                        protocol=args.host_protocol,
+                        username=args.username,
+                        profile=args.profile,
+                        tags=parse_tags(args.tags),
+                        notes=args.notes,
+                    )
+                )
+                print(f"saved host: {args.name}")
+                return 0
+            if args.hosts_action == "list":
+                print(format_hosts_table(store.list()))
+                return 0
+            if args.hosts_action == "show":
+                print(format_hosts_table([store.get(args.name)]))
+                return 0
+            if args.hosts_action == "remove":
+                store.remove(args.name)
+                print(f"removed host: {args.name}")
+                return 0
+            if args.hosts_action == "recent":
+                print(format_seen_hosts_table(store.list_seen()))
+                return 0
+            if args.hosts_action == "save-recent":
+                saved = store.save_seen(
+                    args.id,
+                    name=args.name,
+                    profile=args.profile,
+                    tags=parse_tags(args.tags),
+                    notes=args.notes,
+                )
+                print(f"saved host: {saved.name}")
+                return 0
+
         if args.protocol == "ping":
             count = args.retries if args.retries is not None else args.count
             result = maxconn.ping(args.host, timeout=args.timeout, count=count)
@@ -369,12 +452,59 @@ def main(argv: list[str] | None = None) -> int:
             return 0
 
         prompt_markers = tuple(args.prompt) if args.prompt else (">", "#")
-        with maxconn.connect(
-            args.host,
+        store = _host_store()
+        resolved_host = args.host
+        resolved_port = args.port
+        resolved_username = args.username
+        resolved_password = getpass.getpass("Password: ") if args.ask_password else args.password
+        try:
+            saved_host = store.get(args.host)
+        except KeyError:
+            saved_host = None
+        else:
+            if saved_host.protocol != args.protocol:
+                raise ValueError(f"saved host {args.host} uses protocol {saved_host.protocol}")
+            resolved_host = saved_host.host
+            resolved_port = args.port if args.port is not None else saved_host.port
+            resolved_username = args.username or saved_host.username
+            resolved_password = args.password or saved_host.password
+
+        if not resolved_username:
+            raise ValueError("--username is required unless the host alias has one saved")
+
+        if args.save:
+            password_to_save = resolved_password if args.save_password else None
+            if password_to_save:
+                print(
+                    "Warning: password saved locally in plain text; password saved only because "
+                    "--save-password was used.",
+                    file=sys.stderr,
+                )
+            store.add(
+                HostEntry(
+                    name=args.save,
+                    host=resolved_host,
+                    port=resolved_port or (23 if args.protocol == "telnet" else 22),
+                    protocol=args.protocol,
+                    username=resolved_username,
+                    profile=args.profile or (saved_host.profile if saved_host else None),
+                    tags=parse_tags(args.tags) or (saved_host.tags if saved_host else []),
+                    notes=args.notes or (saved_host.notes if saved_host else None),
+                    password=password_to_save,
+                )
+            )
+        store.record_seen(
+            resolved_host,
             protocol=args.protocol,
-            username=args.username,
-            password=args.password,
-            port=args.port,
+            port=resolved_port or (23 if args.protocol == "telnet" else 22),
+            username=resolved_username,
+        )
+        with maxconn.connect(
+            resolved_host,
+            protocol=args.protocol,
+            username=resolved_username,
+            password=resolved_password,
+            port=resolved_port,
             timeout=args.timeout,
         ) as conn:
             result = conn.run(args.command, prompt_markers=prompt_markers, timeout=args.timeout)

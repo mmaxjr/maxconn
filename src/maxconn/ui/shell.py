@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import shlex
+import subprocess
 
 from .caps import configure_stdio, enable_windows_vt, supports_color
 from .commands import ARGUMENT_OPTIONS, COMMANDS
@@ -45,7 +46,18 @@ RESTART = "restart"
 EXIT = "exit"
 
 
-def run_command(name: str, args: list[str], theme, color_enabled: bool) -> str:
+def run_system_command(line: str, theme, color_enabled: bool) -> None:
+    """Fall back to the OS shell (cmd/PowerShell on Windows, /bin/sh
+    elsewhere) for anything that isn't a maxconn command. Inherits stdio
+    directly so native output/coloring/interactivity works unmodified.
+    """
+    try:
+        subprocess.run(line, shell=True, check=False)
+    except OSError as exc:
+        print(theme.error.render(f"falha ao executar: {exc}", enabled=color_enabled))
+
+
+def run_command(name: str, args: list[str], theme, color_enabled: bool, line: str) -> str:
     """Handle one parsed command. Returns CONTINUE, RESTART or EXIT."""
     if name in ("exit", "quit"):
         return EXIT
@@ -76,7 +88,7 @@ def run_command(name: str, args: list[str], theme, color_enabled: bool) -> str:
         print(theme.muted.render(f"[preview] executaria: {name} {' '.join(args)}", enabled=color_enabled))
         return CONTINUE
 
-    print(theme.error.render(f"comando desconhecido: {name} (digite ? para ver as opções)", enabled=color_enabled))
+    run_system_command(line, theme, color_enabled)
     return CONTINUE
 
 
@@ -84,10 +96,11 @@ def run_session(theme, color_enabled: bool) -> str:
     """Read/dispatch loop for one "boot" of the shell. Returns RESTART or EXIT."""
     completer = Completer(COMMANDS, ARGUMENT_OPTIONS)
     prompt = theme.prompt.render("maxconn> ", enabled=color_enabled)
+    history: list[str] = []
 
     while True:
         try:
-            line = read_line(prompt, completer, theme, color_enabled)
+            line = read_line(prompt, completer, theme, color_enabled, history)
         except KeyboardInterrupt:
             print()
             continue
@@ -98,6 +111,9 @@ def run_session(theme, color_enabled: bool) -> str:
         if not line:
             continue
 
+        if not history or history[-1] != line:
+            history.append(line)
+
         try:
             parts = shlex.split(line)
         except ValueError as exc:
@@ -105,7 +121,7 @@ def run_session(theme, color_enabled: bool) -> str:
             continue
 
         command_name, command_args = parts[0], parts[1:]
-        signal = run_command(command_name, command_args, theme, color_enabled)
+        signal = run_command(command_name, command_args, theme, color_enabled, line)
         if signal in (RESTART, EXIT):
             return signal
 

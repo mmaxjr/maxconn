@@ -1,0 +1,116 @@
+from __future__ import annotations
+
+from maxconn.hosts import (
+    HostEntry,
+    HostStore,
+    format_hosts_table,
+    format_seen_hosts_table,
+)
+
+
+def test_host_store_add_list_show_and_remove(tmp_path):
+    store = HostStore(base_dir=tmp_path)
+    entry = HostEntry(
+        name="olt-01",
+        host="10.0.0.1",
+        port=22,
+        protocol="ssh",
+        username="admin",
+        profile="huawei",
+        tags=["olt", "pop-centro"],
+        notes="core pop",
+    )
+
+    store.add(entry)
+
+    assert store.get("olt-01") == entry
+    assert store.list() == [entry]
+
+    store.remove("olt-01")
+    assert store.list() == []
+
+
+def test_hosts_table_uses_required_columns():
+    entry = HostEntry(
+        name="olt-01",
+        host="10.0.0.1",
+        port=22,
+        protocol="ssh",
+        username="admin",
+        profile="huawei",
+        tags=["olt", "pop-centro"],
+        notes=None,
+    )
+
+    table = format_hosts_table([entry])
+
+    assert "NAME" in table
+    assert "HOST/IP" in table
+    assert "PORT" in table
+    assert "PROTOCOL" in table
+    assert "USER" in table
+    assert "PROFILE" in table
+    assert "TAGS" in table
+    assert "olt-01" in table
+    assert "10.0.0.1" in table
+
+
+def test_record_seen_tracks_count_and_never_password(tmp_path):
+    store = HostStore(base_dir=tmp_path)
+
+    first = store.record_seen("10.0.0.1", protocol="ssh", port=22, username="admin")
+    second = store.record_seen("10.0.0.1", protocol="ssh", port=22, username="admin")
+
+    seen = store.list_seen()
+    assert len(seen) == 1
+    assert seen[0].count == 2
+    assert seen[0].host == "10.0.0.1"
+    assert seen[0].username == "admin"
+    assert not hasattr(first, "password")
+    assert not hasattr(second, "password")
+
+
+def test_save_seen_promotes_recent_host_to_saved_host(tmp_path):
+    store = HostStore(base_dir=tmp_path)
+    store.record_seen("10.0.0.1", protocol="ssh", port=22, username="admin")
+
+    saved = store.save_seen(1, name="olt-01", profile="huawei", tags=["olt"], notes="pop")
+
+    assert saved.name == "olt-01"
+    assert saved.host == "10.0.0.1"
+    assert saved.protocol == "ssh"
+    assert store.get("olt-01").profile == "huawei"
+
+
+def test_seen_hosts_table_has_index_and_recent_fields(tmp_path):
+    store = HostStore(base_dir=tmp_path)
+    store.record_seen("10.0.0.1", protocol="ssh", port=22, username="admin")
+
+    table = format_seen_hosts_table(store.list_seen())
+
+    assert "ID" in table
+    assert "HOST/IP" in table
+    assert "COUNT" in table
+    assert "10.0.0.1" in table
+
+
+def test_hosts_saved_password_is_explicit_and_hidden_from_table(tmp_path):
+    store = HostStore(base_dir=tmp_path)
+    store.add(
+        HostEntry(
+            name="olt-01",
+            host="10.0.0.1",
+            port=22,
+            protocol="ssh",
+            username="admin",
+            profile=None,
+            tags=[],
+            notes=None,
+            password="secret",
+        )
+    )
+
+    table = format_hosts_table(store.list())
+
+    assert "secret" not in table
+    assert store.get("olt-01").password == "secret"

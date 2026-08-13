@@ -2,6 +2,26 @@ from __future__ import annotations
 
 import sys
 
+KEY_UP = "\x00KEY_UP"
+KEY_DOWN = "\x00KEY_DOWN"
+KEY_LEFT = "\x00KEY_LEFT"
+KEY_RIGHT = "\x00KEY_RIGHT"
+
+# Normal key reads are always a single character, so these multi-char
+# sentinels can never collide with real typed input.
+_WINDOWS_EXTENDED = {
+    "H": KEY_UP,
+    "P": KEY_DOWN,
+    "K": KEY_LEFT,
+    "M": KEY_RIGHT,
+}
+_POSIX_ARROWS = {
+    "A": KEY_UP,
+    "B": KEY_DOWN,
+    "C": KEY_RIGHT,
+    "D": KEY_LEFT,
+}
+
 if sys.platform == "win32":
     import msvcrt
 
@@ -9,12 +29,13 @@ if sys.platform == "win32":
         ch = msvcrt.getwch()
         if ch in ("\x00", "\xe0"):
             # Extended key (arrows, F-keys, ...): a second call returns the
-            # real code. We discard it for this preview and report nothing.
-            msvcrt.getwch()
-            return ""
+            # real scan code.
+            code = msvcrt.getwch()
+            return _WINDOWS_EXTENDED.get(code, "")
         return ch
 
 else:
+    import select
     import termios
     import tty
 
@@ -24,9 +45,19 @@ else:
         try:
             tty.setraw(fd)
             ch = sys.stdin.read(1)
+            if ch != "\x1b":
+                return ch
+            # Might be the start of an arrow-key escape sequence (ESC [ X).
+            # Peek with a short timeout so a lone Escape press doesn't hang.
+            if not select.select([sys.stdin], [], [], 0.05)[0]:
+                return ch
+            second = sys.stdin.read(1)
+            if second != "[" or not select.select([sys.stdin], [], [], 0.05)[0]:
+                return ch
+            third = sys.stdin.read(1)
+            return _POSIX_ARROWS.get(third, "")
         finally:
             termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
-        return ch
 
 
 ENTER = ("\r", "\n")
@@ -80,13 +111,28 @@ def _print_options(options: list[tuple[str, str]], theme, color_enabled: bool) -
     sys.stdout.flush()
 
 
-def read_line(prompt_text: str, completer: Completer, theme, color_enabled: bool) -> str:
-    """Read one line with Tab-completion (double-tab lists options) and
-    a Cisco-style ``?`` that shows context help without being inserted
-    into the buffer.
+def _redraw_line(prompt_text: str, buffer: str) -> None:
+    sys.stdout.write("\r\x1b[2K" + prompt_text + buffer)
+    sys.stdout.flush()
+
+
+def read_line(
+    prompt_text: str,
+    completer: Completer,
+    theme,
+    color_enabled: bool,
+    history: list[str] | None = None,
+) -> str:
+    """Read one line with Tab-completion (double-tab lists options), a
+    Cisco-style ``?`` that shows context help without being inserted into
+    the buffer, and Up/Down browsing through ``history`` (most recent
+    submitted lines first), like a normal shell.
     """
     buffer = ""
     last_was_tab = False
+    history = history if history is not None else []
+    history_index = len(history)
+    draft = ""  # what was being typed before Up was first pressed
     sys.stdout.write(prompt_text)
     sys.stdout.flush()
 
@@ -102,6 +148,28 @@ def read_line(prompt_text: str, completer: Completer, theme, color_enabled: bool
 
         if key == CTRL_C:
             raise KeyboardInterrupt
+
+        if key == KEY_UP:
+            if history and history_index > 0:
+                if history_index == len(history):
+                    draft = buffer
+                history_index -= 1
+                buffer = history[history_index]
+                _redraw_line(prompt_text, buffer)
+            last_was_tab = False
+            continue
+
+        if key == KEY_DOWN:
+            if history_index < len(history):
+                history_index += 1
+                buffer = draft if history_index == len(history) else history[history_index]
+                _redraw_line(prompt_text, buffer)
+            last_was_tab = False
+            continue
+
+        if key in (KEY_LEFT, KEY_RIGHT):
+            # In-line cursor movement isn't implemented yet; ignore for now.
+            continue
 
         if key in BACKSPACE:
             if buffer:

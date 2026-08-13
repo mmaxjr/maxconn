@@ -1,6 +1,7 @@
 import json
 
 import maxconn.cli
+from maxconn.hosts import HostEntry, HostStore
 
 
 class FakeResult:
@@ -51,11 +52,102 @@ def test_cli_runs_command_and_prints_output(monkeypatch, capsys):
     assert calls["kwargs"]["protocol"] == "ssh"
 
 
+def test_cli_ssh_can_resolve_saved_host_alias(monkeypatch, tmp_path, capsys):
+    store = HostStore(base_dir=tmp_path)
+    store.add(
+        HostEntry(
+            name="olt-01",
+            host="10.0.0.1",
+            port=22,
+            protocol="ssh",
+            username="admin",
+            profile="huawei",
+        )
+    )
+    calls = {}
+
+    def fake_connect(host, **kwargs):
+        calls["host"] = host
+        calls["kwargs"] = kwargs
+        return FakeConnection()
+
+    monkeypatch.setattr(maxconn.cli, "_host_store", lambda: store)
+    monkeypatch.setattr(maxconn.cli.maxconn, "connect", fake_connect)
+
+    assert maxconn.cli.main(["ssh", "olt-01", "--command", "show version"]) == 0
+
+    assert "device output" in capsys.readouterr().out
+    assert calls["host"] == "10.0.0.1"
+    assert calls["kwargs"]["username"] == "admin"
+    assert calls["kwargs"]["port"] == 22
+
+
+def test_cli_ssh_save_records_host_and_recent(monkeypatch, tmp_path):
+    store = HostStore(base_dir=tmp_path)
+
+    monkeypatch.setattr(maxconn.cli, "_host_store", lambda: store)
+    monkeypatch.setattr(maxconn.cli.maxconn, "connect", lambda host, **kwargs: FakeConnection())
+
+    assert (
+        maxconn.cli.main(
+            [
+                "ssh",
+                "10.0.0.1",
+                "--username",
+                "admin",
+                "--command",
+                "show version",
+                "--save",
+                "olt-01",
+                "--profile",
+                "huawei",
+                "--tags",
+                "olt",
+            ]
+        )
+        == 0
+    )
+
+    assert store.get("olt-01").host == "10.0.0.1"
+    assert store.list_seen()[0].host == "10.0.0.1"
+
+
+def test_cli_ssh_save_password_is_explicit(monkeypatch, tmp_path, capsys):
+    store = HostStore(base_dir=tmp_path)
+
+    monkeypatch.setattr(maxconn.cli, "_host_store", lambda: store)
+    monkeypatch.setattr(maxconn.cli.maxconn, "connect", lambda host, **kwargs: FakeConnection())
+
+    assert (
+        maxconn.cli.main(
+            [
+                "ssh",
+                "10.0.0.1",
+                "--username",
+                "admin",
+                "--password",
+                "secret",
+                "--command",
+                "show version",
+                "--save",
+                "olt-01",
+                "--save-password",
+            ]
+        )
+        == 0
+    )
+
+    assert store.get("olt-01").password == "secret"
+    captured = capsys.readouterr()
+    assert "password saved" in captured.err
+    assert "secret" not in captured.out
+
+
 def test_cli_prints_package_version(capsys):
     exit_code = maxconn.cli.main(["--version"])
 
     assert exit_code == 0
-    assert "maxconn 0.1.9" in capsys.readouterr().out
+    assert "maxconn 0.1.10" in capsys.readouterr().out
 
 
 def test_cli_prints_package_version_from_sys_argv(monkeypatch, capsys):
@@ -64,7 +156,7 @@ def test_cli_prints_package_version_from_sys_argv(monkeypatch, capsys):
     exit_code = maxconn.cli.main()
 
     assert exit_code == 0
-    assert "maxconn 0.1.9" in capsys.readouterr().out
+    assert "maxconn 0.1.10" in capsys.readouterr().out
 
 
 def test_cli_ping_prints_reachable_status(monkeypatch, capsys):
@@ -579,6 +671,87 @@ def test_cli_sftp_mkdir_rm_and_rename_call_client(monkeypatch):
         ("remove", "/old.cfg"),
         ("rename", "/a.cfg", "/b.cfg"),
     ]
+
+
+def test_cli_hosts_add_and_list(monkeypatch, tmp_path, capsys):
+    monkeypatch.setattr(maxconn.cli, "_host_store", lambda: HostStore(base_dir=tmp_path))
+
+    assert (
+        maxconn.cli.main(
+            [
+                "hosts",
+                "add",
+                "olt-01",
+                "--host",
+                "10.0.0.1",
+                "--port",
+                "22",
+                "--protocol",
+                "ssh",
+                "--username",
+                "admin",
+                "--profile",
+                "huawei",
+                "--tags",
+                "olt,pop-centro",
+            ]
+        )
+        == 0
+    )
+
+    assert maxconn.cli.main(["hosts", "list"]) == 0
+    output = capsys.readouterr().out
+    assert "NAME" in output
+    assert "HOST/IP" in output
+    assert "olt-01" in output
+    assert "10.0.0.1" in output
+
+
+def test_cli_hosts_show_and_remove(monkeypatch, tmp_path, capsys):
+    store = HostStore(base_dir=tmp_path)
+    store.add(
+        HostEntry(
+            name="olt-01",
+            host="10.0.0.1",
+            port=22,
+            protocol="ssh",
+            username="admin",
+        )
+    )
+    monkeypatch.setattr(maxconn.cli, "_host_store", lambda: store)
+
+    assert maxconn.cli.main(["hosts", "show", "olt-01"]) == 0
+    assert "10.0.0.1" in capsys.readouterr().out
+
+    assert maxconn.cli.main(["hosts", "remove", "olt-01"]) == 0
+    assert store.list() == []
+
+
+def test_cli_hosts_recent_and_save_recent(monkeypatch, tmp_path, capsys):
+    store = HostStore(base_dir=tmp_path)
+    store.record_seen("10.0.0.1", protocol="ssh", port=22, username="admin")
+    monkeypatch.setattr(maxconn.cli, "_host_store", lambda: store)
+
+    assert maxconn.cli.main(["hosts", "recent"]) == 0
+    assert "10.0.0.1" in capsys.readouterr().out
+
+    assert (
+        maxconn.cli.main(
+            [
+                "hosts",
+                "save-recent",
+                "1",
+                "--name",
+                "olt-01",
+                "--profile",
+                "huawei",
+                "--tags",
+                "olt",
+            ]
+        )
+        == 0
+    )
+    assert store.get("olt-01").host == "10.0.0.1"
 
 
 def test_cli_doctor_prints_environment(capsys):
