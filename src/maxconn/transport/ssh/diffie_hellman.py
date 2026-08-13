@@ -8,6 +8,9 @@ import secrets
 import socket
 from dataclasses import dataclass
 
+from cryptography.hazmat.primitives.asymmetric import ec
+from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
+
 from maxconn.exceptions import ProtocolError
 from maxconn.transport.ssh import messages
 from maxconn.transport.ssh.packet import decode_binary_packet, encode_binary_packet
@@ -47,6 +50,7 @@ def perform_diffie_hellman(
     server_version: bytes,
     client_kexinit_payload: bytes,
     server_kexinit_payload: bytes,
+    hash_name: str = "sha256",
 ) -> KexResult:
     x = secrets.randbelow(P - 3) + 2  # private exponent, 2 <= x <= P-2
     e = pow(G, x, P)
@@ -74,6 +78,48 @@ def perform_diffie_hellman(
         e=e,
         f=f,
         shared_secret=shared_secret,
+        hash_name=hash_name,
+    )
+    return KexResult(shared_secret, exchange_hash, host_key_blob, signature_blob)
+
+
+def perform_ecdh_nistp256(
+    sock: socket.socket,
+    reader: SocketReader,
+    client_version: bytes,
+    server_version: bytes,
+    client_kexinit_payload: bytes,
+    server_kexinit_payload: bytes,
+) -> KexResult:
+    private_key = ec.generate_private_key(ec.SECP256R1())
+    public_key = private_key.public_key()
+    client_public_key = public_key.public_bytes(Encoding.X962, PublicFormat.UncompressedPoint)
+
+    packet = encode_binary_packet(bytes([messages.SSH_MSG_KEXDH_INIT]) + encode_string(client_public_key))
+    sock.sendall(packet)
+
+    reply_payload = decode_binary_packet(reader.read_exact)
+    reply = Reader(reply_payload)
+    msg_type = reply.read_byte()
+    if msg_type != messages.SSH_MSG_KEXDH_REPLY:
+        raise ProtocolError(f"Expected SSH_MSG_KEX_ECDH_REPLY ({messages.SSH_MSG_KEXDH_REPLY}), got {msg_type}")
+
+    host_key_blob = reply.read_string()
+    server_public_key = reply.read_string()
+    signature_blob = reply.read_string()
+
+    peer_public_key = ec.EllipticCurvePublicKey.from_encoded_point(ec.SECP256R1(), server_public_key)
+    shared_key = private_key.exchange(ec.ECDH(), peer_public_key)
+    shared_secret = int.from_bytes(shared_key, "big")
+    exchange_hash = compute_ecdh_exchange_hash(
+        client_version=client_version,
+        server_version=server_version,
+        client_kexinit_payload=client_kexinit_payload,
+        server_kexinit_payload=server_kexinit_payload,
+        host_key_blob=host_key_blob,
+        client_public_key=client_public_key,
+        server_public_key=server_public_key,
+        shared_secret=shared_secret,
     )
     return KexResult(shared_secret, exchange_hash, host_key_blob, signature_blob)
 
@@ -88,6 +134,7 @@ def compute_exchange_hash(
     e: int,
     f: int,
     shared_secret: int,
+    hash_name: str = "sha256",
 ) -> bytes:
     """H = SHA256(V_C || V_S || I_C || I_S || K_S || e || f || K), RFC 4253 §8."""
     hash_input = b"".join(
@@ -102,4 +149,32 @@ def compute_exchange_hash(
             encode_mpint(shared_secret),
         ]
     )
-    return hashlib.sha256(hash_input).digest()
+    return hashlib.new(hash_name, hash_input).digest()
+
+
+def compute_ecdh_exchange_hash(
+    *,
+    client_version: bytes,
+    server_version: bytes,
+    client_kexinit_payload: bytes,
+    server_kexinit_payload: bytes,
+    host_key_blob: bytes,
+    client_public_key: bytes,
+    server_public_key: bytes,
+    shared_secret: int,
+    hash_name: str = "sha256",
+) -> bytes:
+    """H = SHA256(V_C || V_S || I_C || I_S || K_S || Q_C || Q_S || K), RFC 5656."""
+    hash_input = b"".join(
+        [
+            encode_string(client_version),
+            encode_string(server_version),
+            encode_string(client_kexinit_payload),
+            encode_string(server_kexinit_payload),
+            encode_string(host_key_blob),
+            encode_string(client_public_key),
+            encode_string(server_public_key),
+            encode_mpint(shared_secret),
+        ]
+    )
+    return hashlib.new(hash_name, hash_input).digest()

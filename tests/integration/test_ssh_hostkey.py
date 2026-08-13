@@ -19,7 +19,7 @@ def test_host_key_signature_verifies_against_real_ssh_server(ssh_server):
         client_version = send_version(sock)
         server_version = recv_version(reader)
 
-        client_kexinit = build_kexinit()
+        client_kexinit = build_kexinit(kex_algorithms=["diffie-hellman-group14-sha256"])
         sock.sendall(encode_binary_packet(client_kexinit))
         server_kexinit = decode_binary_packet(reader.read_exact)
 

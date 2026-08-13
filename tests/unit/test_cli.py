@@ -104,6 +104,35 @@ def test_cli_ssh_can_resolve_saved_host_alias(monkeypatch, tmp_path, capsys):
     assert calls["kwargs"]["port"] == 22
 
 
+def test_cli_ssh_accepts_username_at_host_syntax(monkeypatch, capsys):
+    calls = {}
+
+    def fake_connect(host, **kwargs):
+        calls["host"] = host
+        calls["kwargs"] = kwargs
+        return FakeConnection()
+
+    monkeypatch.setattr(maxconn.cli.maxconn, "connect", fake_connect)
+
+    assert (
+        maxconn.cli.main(
+            [
+                "ssh",
+                "bgp_view@177.84.161.226",
+                "--password",
+                "public-view-password",
+                "--command",
+                "show version",
+            ]
+        )
+        == 0
+    )
+
+    assert "device output" in capsys.readouterr().out
+    assert calls["host"] == "177.84.161.226"
+    assert calls["kwargs"]["username"] == "bgp_view"
+
+
 def test_cli_ssh_without_command_opens_interactive_session(monkeypatch, tmp_path, capsys):
     store = HostStore(base_dir=tmp_path)
     store.add(
@@ -253,7 +282,7 @@ def test_cli_prints_package_version(capsys):
     exit_code = maxconn.cli.main(["--version"])
 
     assert exit_code == 0
-    assert "maxconn 0.1.13" in capsys.readouterr().out
+    assert "maxconn 0.1.14" in capsys.readouterr().out
 
 
 def test_cli_prints_package_version_from_sys_argv(monkeypatch, capsys):
@@ -262,7 +291,7 @@ def test_cli_prints_package_version_from_sys_argv(monkeypatch, capsys):
     exit_code = maxconn.cli.main()
 
     assert exit_code == 0
-    assert "maxconn 0.1.13" in capsys.readouterr().out
+    assert "maxconn 0.1.14" in capsys.readouterr().out
 
 
 def test_cli_ping_prints_reachable_status(monkeypatch, capsys):

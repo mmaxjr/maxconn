@@ -1,6 +1,11 @@
 import hashlib
 
-from maxconn.transport.ssh.diffie_hellman import G, P, compute_exchange_hash
+from maxconn.transport.ssh.diffie_hellman import (
+    G,
+    P,
+    compute_ecdh_exchange_hash,
+    compute_exchange_hash,
+)
 from maxconn.transport.ssh.wire import encode_mpint, encode_string
 
 
@@ -63,3 +68,35 @@ def test_compute_exchange_hash_is_sensitive_to_every_field():
         changed = dict(base_kwargs)
         changed[field] = changed[field] + 1
         assert compute_exchange_hash(**changed) != baseline
+
+
+def test_compute_ecdh_exchange_hash_matches_manual_construction():
+    shared_secret = 123456789
+    client_public_key = b"\x04" + b"\x01" * 64
+    server_public_key = b"\x04" + b"\x02" * 64
+    host_key_blob = b"ecdsa-host-key"
+
+    expected_input = (
+        encode_string(b"SSH-2.0-client")
+        + encode_string(b"SSH-2.0-server")
+        + encode_string(b"client-kexinit")
+        + encode_string(b"server-kexinit")
+        + encode_string(host_key_blob)
+        + encode_string(client_public_key)
+        + encode_string(server_public_key)
+        + encode_mpint(shared_secret)
+    )
+    expected = hashlib.sha256(expected_input).digest()
+
+    actual = compute_ecdh_exchange_hash(
+        client_version=b"SSH-2.0-client",
+        server_version=b"SSH-2.0-server",
+        client_kexinit_payload=b"client-kexinit",
+        server_kexinit_payload=b"server-kexinit",
+        host_key_blob=host_key_blob,
+        client_public_key=client_public_key,
+        server_public_key=server_public_key,
+        shared_secret=shared_secret,
+    )
+
+    assert actual == expected

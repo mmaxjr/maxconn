@@ -1,6 +1,7 @@
 import pytest
 from cryptography.hazmat.primitives import hashes
-from cryptography.hazmat.primitives.asymmetric import padding, rsa
+from cryptography.hazmat.primitives.asymmetric import ec, padding, rsa, utils
+from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 
 from maxconn.exceptions import ProtocolError
 from maxconn.transport.ssh.hostkey import parse_rsa_host_key, verify_host_key_signature
@@ -16,6 +17,20 @@ def _build_signature_blob(private_key: rsa.RSAPrivateKey, algorithm: str, messag
     hash_cls = {"ssh-rsa": hashes.SHA1, "rsa-sha2-256": hashes.SHA256}[algorithm]
     signature = private_key.sign(message, padding.PKCS1v15(), hash_cls())
     return encode_string(algorithm.encode("ascii")) + encode_string(signature)
+
+
+def _build_ecdsa_host_key_blob(public_key: ec.EllipticCurvePublicKey) -> bytes:
+    point = public_key.public_bytes(Encoding.X962, PublicFormat.UncompressedPoint)
+    return encode_string(b"ecdsa-sha2-nistp256") + encode_string(b"nistp256") + encode_string(point)
+
+
+def _build_ecdsa_signature_blob(private_key: ec.EllipticCurvePrivateKey, message: bytes) -> bytes:
+    der_signature = private_key.sign(message, ec.ECDSA(hashes.SHA256()))
+    r, s = utils.decode_dss_signature(der_signature)
+    signature = encode_string(r.to_bytes((r.bit_length() + 7) // 8 or 1, "big")) + encode_string(
+        s.to_bytes((s.bit_length() + 7) // 8 or 1, "big")
+    )
+    return encode_string(b"ecdsa-sha2-nistp256") + encode_string(signature)
 
 
 @pytest.fixture(scope="module")
@@ -51,6 +66,15 @@ def test_verify_host_key_signature_succeeds_for_legacy_ssh_rsa(keypair):
     host_key_blob = _build_host_key_blob(public_key)
     exchange_hash = b"\x22" * 32
     signature_blob = _build_signature_blob(private_key, "ssh-rsa", exchange_hash)
+
+    verify_host_key_signature(host_key_blob, signature_blob, exchange_hash)  # must not raise
+
+
+def test_verify_host_key_signature_succeeds_for_ecdsa_nistp256():
+    private_key = ec.generate_private_key(ec.SECP256R1())
+    host_key_blob = _build_ecdsa_host_key_blob(private_key.public_key())
+    exchange_hash = b"\x99" * 32
+    signature_blob = _build_ecdsa_signature_blob(private_key, exchange_hash)
 
     verify_host_key_signature(host_key_blob, signature_blob, exchange_hash)  # must not raise
 

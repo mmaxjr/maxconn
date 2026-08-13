@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.14 - 2026-08-13
+
+- Add SSH `ecdh-sha2-nistp256` key exchange compatibility.
+- Add SSH `ecdsa-sha2-nistp256` host-key signature verification.
+- Add legacy `diffie-hellman-group14-sha1` and `hmac-sha1` negotiation fallback.
+- Accept OpenSSH-style `username@host` syntax for SSH/Telnet CLI commands.
+
 ## 0.1.13 - 2026-08-13
 
 - Add left/right cursor movement inside `maxconn start`.

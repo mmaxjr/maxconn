@@ -83,3 +83,13 @@ def test_wrong_mac_key_fails_verification():
     packet = writer.encode_packet(b"payload")
     with pytest.raises(ProtocolError):
         reader.decode_packet(_make_reader(packet))
+
+
+def test_hmac_sha1_packets_round_trip_for_legacy_servers():
+    enc_key, iv, mac_key = b"\x13" * 16, b"\x14" * 16, b"\x15" * 20
+    writer = SSHSessionCipher(enc_key, iv, mac_key, mac_algorithm="hmac-sha1")
+    reader = SSHSessionCipher(enc_key, iv, mac_key, mac_algorithm="hmac-sha1")
+
+    packet = writer.encode_packet(b"legacy mac")
+
+    assert reader.decode_packet(_make_reader(packet)) == b"legacy mac"

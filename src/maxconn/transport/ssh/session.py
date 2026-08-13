@@ -1,5 +1,5 @@
 """Encrypted packet framing for the post-NEWKEYS phase: aes128-ctr encryption
-+ hmac-sha2-256 integrity (RFC 4253 sections 6 and 6.4), replacing the
++ HMAC integrity (RFC 4253 sections 6 and 6.4), replacing the
 plaintext framing in `packet.py`.
 
 The length field IS encrypted (this is "encrypt-then-nothing", the classic
@@ -21,7 +21,8 @@ from maxconn.exceptions import ProtocolError
 from maxconn.transport.ssh.packet import MIN_PADDING
 
 BLOCK_SIZE = 16  # AES block size
-MAC_SIZE = 32  # hmac-sha2-256 digest size
+MAC_SIZES = {"hmac-sha2-256": 32, "hmac-sha1": 20}
+MAC_HASHES = {"hmac-sha2-256": hashlib.sha256, "hmac-sha1": hashlib.sha1}
 
 
 class SSHSessionCipher:
@@ -29,11 +30,20 @@ class SSHSessionCipher:
     what we send, one for what we receive - constructed with the matching
     enc/iv/mac keys for that direction."""
 
-    def __init__(self, enc_key: bytes, iv: bytes, mac_key: bytes, initial_seq: int = 0) -> None:
+    def __init__(
+        self,
+        enc_key: bytes,
+        iv: bytes,
+        mac_key: bytes,
+        initial_seq: int = 0,
+        mac_algorithm: str = "hmac-sha2-256",
+    ) -> None:
         cipher = Cipher(algorithms.AES(enc_key), modes.CTR(iv))
         self._encryptor = cipher.encryptor()
         self._decryptor = cipher.decryptor()
         self._mac_key = mac_key
+        self._mac_algorithm = mac_algorithm
+        self._mac_size = MAC_SIZES[mac_algorithm]
         # RFC 4253 §6.4: the sequence number counts every packet sent on
         # this connection since the start, not just encrypted ones - so
         # this session's first packet is rarely sequence 0 (KEXINIT,
@@ -69,7 +79,7 @@ class SSHSessionCipher:
         remaining_plain = self._decryptor.update(remaining_cipher)
         plaintext = first_block_plain + remaining_plain
 
-        received_mac = read_exact(MAC_SIZE)
+        received_mac = read_exact(self._mac_size)
         expected_mac = self._compute_mac(self._seq, plaintext)
         if not hmac.compare_digest(received_mac, expected_mac):
             raise ProtocolError("SSH packet MAC verification failed")
@@ -82,4 +92,4 @@ class SSHSessionCipher:
         return plaintext[5 : 5 + payload_length]
 
     def _compute_mac(self, seq: int, plaintext: bytes) -> bytes:
-        return hmac.new(self._mac_key, struct.pack(">I", seq) + plaintext, hashlib.sha256).digest()
+        return hmac.new(self._mac_key, struct.pack(">I", seq) + plaintext, MAC_HASHES[self._mac_algorithm]).digest()

@@ -40,6 +40,17 @@ def test_build_then_parse_kexinit_round_trips():
     assert parsed.first_kex_packet_follows is False
 
 
+def test_kexinit_offers_legacy_and_ecdh_compatibility_algorithms():
+    assert KEX_ALGORITHMS[:3] == [
+        "ecdh-sha2-nistp256",
+        "diffie-hellman-group14-sha256",
+        "diffie-hellman-group14-sha1",
+    ]
+    assert "ecdsa-sha2-nistp256" in SERVER_HOST_KEY_ALGORITHMS
+    assert "ssh-rsa" in SERVER_HOST_KEY_ALGORITHMS
+    assert "hmac-sha1" in MAC_ALGORITHMS
+
+
 def test_parse_kexinit_rejects_wrong_message_type():
     with pytest.raises(ProtocolError):
         parse_kexinit(bytes([99]) + b"\x00" * 16)
