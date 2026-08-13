@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.10 - 2026-08-13
+
+- Add local saved hosts with `maxconn hosts add/list/show/remove`.
+- Add recent host tracking with `maxconn hosts recent` and `save-recent`.
+- Allow SSH/Telnet commands to resolve saved host aliases.
+- Add `--save` for SSH/Telnet connections.
+- Allow explicit local password saving with `--save-password`, keeping passwords out of tables and recent-host records.
+
 ## 0.1.9 - 2026-08-12
 
 - Add JSON/export output to `ping`, `scan`, `traceroute`, `snmp get`, `snmp walk`, and `sftp stat`.

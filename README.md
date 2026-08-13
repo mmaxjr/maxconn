@@ -64,7 +64,7 @@ Telnet não puxa dependências extras. SSH usa `cryptography` pelo extra `ssh`.
 Paramiko fica só nos testes, para subir um servidor SSH local e validar o
 cliente do MAXCONN contra uma implementação independente.
 
-Versão atual em desenvolvimento: `0.1.9`.
+Versão atual em desenvolvimento: `0.1.10`.
 
 ### Status dos módulos
 
@@ -82,6 +82,11 @@ CLI básica:
 ```bash
 maxconn --version
 maxconn selftest
+maxconn hosts add olt-01 --host 10.0.0.1 --port 22 --protocol ssh --username admin --profile huawei --tags olt,pop-centro
+maxconn hosts list
+maxconn hosts recent
+maxconn hosts save-recent 1 --name olt-01 --profile huawei --tags olt
+maxconn ssh olt-01 --command "display version"
 maxconn ping 192.0.2.1
 maxconn ping 192.0.2.1 --output json --export ping.json
 maxconn scan 192.0.2.1 --ports 22,23,80,443
@@ -110,6 +115,10 @@ maxconn snmp walk 192.0.2.1 1.3.6.1.2.1.1 --community public --output json
 maxconn ssh 192.0.2.10 --username admin --password secret --command "show version"
 maxconn telnet 192.0.2.20 --username admin --password secret --command "show status"
 ```
+
+Hosts salvos ficam em `~/.maxconn/hosts.json`. Hosts usados recentemente ficam
+em `~/.maxconn/seen_hosts.json`, sem senha. Para salvar senha localmente, use
+`--save-password` de forma explícita; ela não aparece em `hosts list`.
 
 ### Uso Básico
 
@@ -441,7 +450,7 @@ Telnet does not pull extra runtime dependencies. SSH uses `cryptography` through
 the `ssh` extra. Paramiko is test-only and is used to run a local SSH server for
 integration tests.
 
-Current development version: `0.1.9`.
+Current development version: `0.1.10`.
 
 ### Module Status
 
@@ -459,6 +468,11 @@ Basic CLI:
 ```bash
 maxconn --version
 maxconn selftest
+maxconn hosts add olt-01 --host 10.0.0.1 --port 22 --protocol ssh --username admin --profile huawei --tags olt,pop-centro
+maxconn hosts list
+maxconn hosts recent
+maxconn hosts save-recent 1 --name olt-01 --profile huawei --tags olt
+maxconn ssh olt-01 --command "display version"
 maxconn ping 192.0.2.1
 maxconn ping 192.0.2.1 --output json --export ping.json
 maxconn scan 192.0.2.1 --ports 22,23,80,443
@@ -487,6 +501,10 @@ maxconn snmp walk 192.0.2.1 1.3.6.1.2.1.1 --community public --output json
 maxconn ssh 192.0.2.10 --username admin --password secret --command "show version"
 maxconn telnet 192.0.2.20 --username admin --password secret --command "show status"
 ```
+
+Saved hosts live in `~/.maxconn/hosts.json`. Recently used hosts live in
+`~/.maxconn/seen_hosts.json`, without passwords. To save a password locally,
+use `--save-password` explicitly; it is not shown in `hosts list`.
 
 ### Basic Usage
 
