@@ -222,7 +222,13 @@ def read_line(
             last_was_tab = False
             continue
 
-        buffer = buffer[:cursor] + key + buffer[cursor:]
-        cursor += len(key)
-        _redraw_line(prompt_text, buffer, cursor)
+        if cursor == len(buffer):
+            buffer += key
+            cursor += len(key)
+            sys.stdout.write(key)
+            sys.stdout.flush()
+        else:
+            buffer = buffer[:cursor] + key + buffer[cursor:]
+            cursor += len(key)
+            _redraw_line(prompt_text, buffer, cursor)
         last_was_tab = False

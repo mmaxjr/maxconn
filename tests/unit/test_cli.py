@@ -306,7 +306,7 @@ def test_cli_prints_package_version(capsys):
     exit_code = maxconn.cli.main(["--version"])
 
     assert exit_code == 0
-    assert "maxconn 0.1.15" in capsys.readouterr().out
+    assert "maxconn 0.1.16" in capsys.readouterr().out
 
 
 def test_cli_prints_package_version_from_sys_argv(monkeypatch, capsys):
@@ -315,7 +315,7 @@ def test_cli_prints_package_version_from_sys_argv(monkeypatch, capsys):
     exit_code = maxconn.cli.main()
 
     assert exit_code == 0
-    assert "maxconn 0.1.15" in capsys.readouterr().out
+    assert "maxconn 0.1.16" in capsys.readouterr().out
 
 
 def test_cli_ping_prints_reachable_status(monkeypatch, capsys):
@@ -864,6 +864,38 @@ def test_cli_hosts_add_and_list(monkeypatch, tmp_path, capsys):
     assert "HOST/IP" in output
     assert "olt-01" in output
     assert "10.0.0.1" in output
+
+
+def test_cli_hosts_add_can_save_password_explicitly(monkeypatch, tmp_path, capsys):
+    store = HostStore(base_dir=tmp_path)
+    monkeypatch.setattr(maxconn.cli, "_host_store", lambda: store)
+
+    assert (
+        maxconn.cli.main(
+            [
+                "hosts",
+                "add",
+                "bgp-view",
+                "--host",
+                "177.84.161.226",
+                "--port",
+                "22",
+                "--protocol",
+                "ssh",
+                "--username",
+                "bgp_view",
+                "--password",
+                "public-view-password",
+                "--save-password",
+            ]
+        )
+        == 0
+    )
+
+    captured = capsys.readouterr()
+    assert store.get("bgp-view").password == "public-view-password"
+    assert "password saved" in captured.err
+    assert "public-view-password" not in captured.out
 
 
 def test_cli_hosts_show_and_remove(monkeypatch, tmp_path, capsys):
