@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.11 - 2026-08-13
+
+- Allow `maxconn ssh HOST` and `maxconn telnet HOST` to open an interactive line-by-line device terminal.
+- Keep `--command` available for one-shot command execution.
+- Wire `ssh`, `telnet`, and `open HOST` inside `maxconn start` to the real CLI flow.
+- Keep saved-host aliases and saved credentials working in interactive sessions.
+
 ## 0.1.10 - 2026-08-13
 
 - Add local saved hosts with `maxconn hosts add/list/show/remove`.

@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any
 
 import maxconn
+from maxconn.exceptions import MaxConnError
 from maxconn.hosts import (
     HostEntry,
     HostStore,
@@ -28,6 +29,52 @@ def _parse_ports(raw: str) -> list[int]:
 
 def _host_store() -> HostStore:
     return HostStore()
+
+
+def _interactive_input(prompt: str) -> str:
+    return input(prompt)
+
+
+def _run_interactive_connection(
+    conn: Any,
+    *,
+    label: str,
+    host: str,
+    protocol: str,
+    prompt_markers: tuple[str, ...],
+    timeout: float,
+) -> int:
+    print(f"connected: {label} ({host}) {protocol}")
+    print("type exit or quit to return")
+    device_prompt = f"{label}>"
+    try:
+        initial_output = conn.read_until(prompt_markers[0], timeout=min(timeout, 3.0))
+    except (MaxConnError, OSError, TimeoutError):
+        initial_output = ""
+    if initial_output:
+        print(initial_output, end="" if initial_output.endswith("\n") else "\n")
+        device_prompt = _extract_device_prompt(initial_output, fallback=device_prompt)
+    while True:
+        try:
+            command = _interactive_input(f"{device_prompt} ").strip()
+        except (EOFError, KeyboardInterrupt):
+            print()
+            return 0
+        if not command:
+            continue
+        if command.lower() in {"exit", "quit"}:
+            return 0
+        result = conn.run(command, prompt_markers=prompt_markers, timeout=timeout)
+        print(result.text, end="" if result.text.endswith("\n") else "\n")
+        device_prompt = _extract_device_prompt(result.text, fallback=device_prompt)
+
+
+def _extract_device_prompt(text: str, *, fallback: str) -> str:
+    for line in reversed(text.splitlines()):
+        stripped = line.strip()
+        if stripped.endswith((">", "#")) and stripped not in {">", "#"}:
+            return stripped
+    return fallback
 
 
 def _is_json_output(args: argparse.Namespace) -> bool:
@@ -120,7 +167,7 @@ def main(argv: list[str] | None = None) -> int:
         command.add_argument("--username")
         command.add_argument("--password")
         command.add_argument("--port", type=int)
-        command.add_argument("--command", required=True)
+        command.add_argument("--command")
         command.add_argument("--timeout", type=float, default=10.0)
         command.add_argument("--prompt", action="append", default=None)
         command.add_argument("--profile")
@@ -507,6 +554,15 @@ def main(argv: list[str] | None = None) -> int:
             port=resolved_port,
             timeout=args.timeout,
         ) as conn:
+            if args.command is None:
+                return _run_interactive_connection(
+                    conn,
+                    label=args.host,
+                    host=resolved_host,
+                    protocol=args.protocol,
+                    prompt_markers=prompt_markers,
+                    timeout=args.timeout,
+                )
             result = conn.run(args.command, prompt_markers=prompt_markers, timeout=args.timeout)
             print(result.text, end="" if result.text.endswith("\n") else "\n")
             return 0 if result.ok else 1
