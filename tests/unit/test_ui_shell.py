@@ -100,7 +100,6 @@ def test_shell_help_does_not_show_preview_only_commands(capsys):
 
     output = capsys.readouterr().out
     assert signal == shell.CONTINUE
-    assert "discover" not in output
     assert "backup" not in output
     assert "diff" not in output
     assert "inventory" not in output

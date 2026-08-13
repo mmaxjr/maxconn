@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-__version__ = "0.1.17"
+__version__ = "0.1.18"
 
 from maxconn.exceptions import (
     AuthenticationError,
@@ -12,10 +12,13 @@ from maxconn.exceptions import (
     ProtocolError,
 )
 from maxconn.net import (
+    DEFAULT_DISCOVER_PORTS,
+    DiscoverHost,
     MTRResult,
     PingResult,
     ScanResult,
     TraceRouteResult,
+    discover,
     mtr,
     ping,
     scan,
@@ -25,11 +28,13 @@ from maxconn.sessions import SessionManager
 from maxconn.transport.base import CommandResult, Connection, Transport
 
 __all__ = [
+    "DEFAULT_DISCOVER_PORTS",
     "AuthenticationError",
     "ChannelError",
     "CommandResult",
     "Connection",
     "ConnectionTimeoutError",
+    "DiscoverHost",
     "MTRResult",
     "MaxConnError",
     "PingResult",
@@ -40,6 +45,7 @@ __all__ = [
     "__version__",
     "connect",
     "connect_sftp",
+    "discover",
     "mtr",
     "ping",
     "scan",

@@ -64,7 +64,7 @@ Telnet não puxa dependências extras. SSH usa `cryptography` pelo extra `ssh`.
 Paramiko fica só nos testes, para subir um servidor SSH local e validar o
 cliente do MAXCONN contra uma implementação independente.
 
-Versão atual em desenvolvimento: `0.1.17`.
+Versão atual em desenvolvimento: `0.1.18`.
 
 ### Status dos módulos
 
@@ -93,6 +93,8 @@ maxconn ping 192.0.2.1
 maxconn ping 192.0.2.1 --output json --export ping.json
 maxconn scan 192.0.2.1 --ports 22,23,80,443
 maxconn scan 192.0.2.1 --ports 22,80,443 --json
+maxconn discover 192.168.0.0/24
+maxconn discover 192.168.0.0/24 --ports 80,443 --json
 maxconn traceroute 8.8.8.8
 maxconn traceroute 8.8.8.8 --output json
 maxconn mtr 8.8.8.8
@@ -229,6 +231,21 @@ import maxconn
 for result in maxconn.scan("192.0.2.1", ports=[22, 23, 80, 443]):
     print(result.port, "open" if result.open else "closed")
 ```
+
+Discover de bloco:
+
+```python
+import maxconn
+
+for host in maxconn.discover("192.168.0.0/24"):
+    if host.reachable:
+        print(host.host, host.open_ports)
+```
+
+No terminal, `maxconn discover REDE/CIDR` testa portas TCP comuns em todos os
+hosts do bloco. As portas padrão incluem pelo menos `80` e `443`, junto com
+portas comuns de rede como SSH, Telnet, SNMP, MikroTik e HTTP/HTTPS alternativo.
+Use `--ports` para limitar ou alterar a lista.
 
 Traceroute e mini MTR:
 
@@ -456,7 +473,7 @@ Telnet does not pull extra runtime dependencies. SSH uses `cryptography` through
 the `ssh` extra. Paramiko is test-only and is used to run a local SSH server for
 integration tests.
 
-Current development version: `0.1.17`.
+Current development version: `0.1.18`.
 
 ### Module Status
 
@@ -485,6 +502,8 @@ maxconn ping 192.0.2.1
 maxconn ping 192.0.2.1 --output json --export ping.json
 maxconn scan 192.0.2.1 --ports 22,23,80,443
 maxconn scan 192.0.2.1 --ports 22,80,443 --json
+maxconn discover 192.168.0.0/24
+maxconn discover 192.168.0.0/24 --ports 80,443 --json
 maxconn traceroute 8.8.8.8
 maxconn traceroute 8.8.8.8 --output json
 maxconn mtr 8.8.8.8
@@ -621,6 +640,21 @@ import maxconn
 for result in maxconn.scan("192.0.2.1", ports=[22, 23, 80, 443]):
     print(result.port, "open" if result.open else "closed")
 ```
+
+Subnet discovery:
+
+```python
+import maxconn
+
+for host in maxconn.discover("192.168.0.0/24"):
+    if host.reachable:
+        print(host.host, host.open_ports)
+```
+
+In the terminal, `maxconn discover NETWORK/CIDR` tests common TCP ports across
+the subnet. The default ports include at least `80` and `443`, plus common
+network ports such as SSH, Telnet, SNMP, MikroTik, and alternate HTTP/HTTPS.
+Use `--ports` to limit or change the list.
 
 Traceroute and mini MTR:
 
