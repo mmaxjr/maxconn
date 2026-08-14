@@ -64,7 +64,7 @@ Telnet não puxa dependências extras. SSH usa `cryptography` pelo extra `ssh`.
 Paramiko fica só nos testes, para subir um servidor SSH local e validar o
 cliente do MAXCONN contra uma implementação independente.
 
-Versão atual em desenvolvimento: `0.1.18`.
+Versão atual em desenvolvimento: `0.1.19`.
 
 ### Status dos módulos
 
@@ -86,6 +86,10 @@ maxconn hosts add olt-01 --host 10.0.0.1 --port 22 --protocol ssh --username adm
 maxconn hosts list
 maxconn hosts recent
 maxconn hosts save-recent 1 --name olt-01 --profile huawei --tags olt
+maxconn hosts test olt-01
+maxconn history list
+maxconn history show 1
+maxconn history clear
 maxconn ssh olt-01
 maxconn ssh olt-01 --command "display version"
 maxconn start
@@ -95,6 +99,8 @@ maxconn scan 192.0.2.1 --ports 22,23,80,443
 maxconn scan 192.0.2.1 --ports 22,80,443 --json
 maxconn discover 192.168.0.0/24
 maxconn discover 192.168.0.0/24 --ports 80,443 --json
+maxconn discover 192.168.0.0/24 --only-open
+maxconn discover 192.168.0.0/24 --save-found
 maxconn traceroute 8.8.8.8
 maxconn traceroute 8.8.8.8 --output json
 maxconn mtr 8.8.8.8
@@ -123,6 +129,8 @@ maxconn telnet 192.0.2.20 --username admin --password secret --command "show sta
 Hosts salvos ficam em `~/.maxconn/hosts.json`. Hosts usados recentemente ficam
 em `~/.maxconn/seen_hosts.json`, sem senha. Para salvar senha localmente, use
 `--save-password` de forma explícita; ela não aparece em `hosts list`.
+Histórico local fica em `~/.maxconn/history.jsonl`; comandos com palavras como
+senha, token ou secret são gravados com redação.
 
 Para entrar no terminal do equipamento, use `maxconn ssh NOME` ou
 `maxconn telnet NOME` sem `--command`. Dentro do terminal visual aberto por
@@ -473,7 +481,7 @@ Telnet does not pull extra runtime dependencies. SSH uses `cryptography` through
 the `ssh` extra. Paramiko is test-only and is used to run a local SSH server for
 integration tests.
 
-Current development version: `0.1.18`.
+Current development version: `0.1.19`.
 
 ### Module Status
 
@@ -495,6 +503,10 @@ maxconn hosts add olt-01 --host 10.0.0.1 --port 22 --protocol ssh --username adm
 maxconn hosts list
 maxconn hosts recent
 maxconn hosts save-recent 1 --name olt-01 --profile huawei --tags olt
+maxconn hosts test olt-01
+maxconn history list
+maxconn history show 1
+maxconn history clear
 maxconn ssh olt-01
 maxconn ssh olt-01 --command "display version"
 maxconn start
@@ -504,6 +516,8 @@ maxconn scan 192.0.2.1 --ports 22,23,80,443
 maxconn scan 192.0.2.1 --ports 22,80,443 --json
 maxconn discover 192.168.0.0/24
 maxconn discover 192.168.0.0/24 --ports 80,443 --json
+maxconn discover 192.168.0.0/24 --only-open
+maxconn discover 192.168.0.0/24 --save-found
 maxconn traceroute 8.8.8.8
 maxconn traceroute 8.8.8.8 --output json
 maxconn mtr 8.8.8.8
@@ -532,6 +546,8 @@ maxconn telnet 192.0.2.20 --username admin --password secret --command "show sta
 Saved hosts live in `~/.maxconn/hosts.json`. Recently used hosts live in
 `~/.maxconn/seen_hosts.json`, without passwords. To save a password locally,
 use `--save-password` explicitly; it is not shown in `hosts list`.
+Local command history lives in `~/.maxconn/history.jsonl`; commands containing
+words such as password, token, or secret are stored with redaction.
 
 To enter a device terminal, run `maxconn ssh NAME` or `maxconn telnet NAME`
 without `--command`. Inside the visual shell opened by `maxconn start`, use

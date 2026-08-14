@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.19 - 2026-08-14
+
+- Add local command history with `maxconn history list/show/clear`.
+- Add `maxconn hosts test HOST` to verify a saved host port.
+- Add `maxconn discover --only-open` and `--save-found`.
+
 ## 0.1.18 - 2026-08-13
 
 - Add `maxconn discover NETWORK/CIDR` for subnet TCP discovery.

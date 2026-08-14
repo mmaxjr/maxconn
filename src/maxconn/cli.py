@@ -6,12 +6,14 @@ import json
 import platform
 import shutil
 import sys
+import time
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
 import maxconn
 from maxconn.exceptions import MaxConnError
+from maxconn.history import HistoryStore, format_history_table
 from maxconn.hosts import (
     HostEntry,
     HostStore,
@@ -29,6 +31,10 @@ def _parse_ports(raw: str) -> list[int]:
 
 def _host_store() -> HostStore:
     return HostStore()
+
+
+def _history_store() -> HistoryStore:
+    return HistoryStore()
 
 
 def _interactive_input(prompt: str) -> str:
@@ -160,6 +166,12 @@ def _discover_payload(network: str, results: list[Any]) -> dict[str, Any]:
     }
 
 
+def _protocol_for_port(port: int) -> str:
+    if port == 23:
+        return "telnet"
+    return "ssh"
+
+
 def _traceroute_payload(result: Any) -> dict[str, Any]:
     return {
         "host": result.host,
@@ -227,6 +239,9 @@ def main(argv: list[str] | None = None) -> int:
     hosts_show.add_argument("name")
     hosts_remove = hosts_subcommands.add_parser("remove", help="remove one saved host")
     hosts_remove.add_argument("name")
+    hosts_test = hosts_subcommands.add_parser("test", help="test one saved host")
+    hosts_test.add_argument("name")
+    hosts_test.add_argument("--timeout", type=float, default=1.0)
     hosts_subcommands.add_parser("recent", help="list recently used hosts")
     hosts_save_recent = hosts_subcommands.add_parser("save-recent", help="save a recently used host")
     hosts_save_recent.add_argument("id", type=int)
@@ -266,6 +281,17 @@ def main(argv: list[str] | None = None) -> int:
     discover_command.add_argument("--json", action="store_true", help="print JSON output")
     discover_command.add_argument("--output", choices=("text", "json"), default="text")
     discover_command.add_argument("--export", help="write the rendered output to a file")
+    discover_command.add_argument("--only-open", action="store_true", help="show only hosts with open ports")
+    discover_command.add_argument("--save-found", action="store_true", help="save discovered open hosts locally")
+
+    history_command = subparsers.add_parser("history", help="manage local command history")
+    history_subcommands = history_command.add_subparsers(dest="history_action", required=True)
+    history_list = history_subcommands.add_parser("list", help="list command history")
+    history_list.add_argument("--host")
+    history_list.add_argument("--protocol", dest="history_protocol")
+    history_show = history_subcommands.add_parser("show", help="show one history entry")
+    history_show.add_argument("id", type=int)
+    history_subcommands.add_parser("clear", help="clear command history")
 
     subparsers.add_parser("doctor", help="print local environment diagnostics")
     subparsers.add_parser("selftest", help="run quick local CLI checks")
@@ -383,6 +409,13 @@ def main(argv: list[str] | None = None) -> int:
                 store.remove(args.name)
                 print(f"removed host: {args.name}")
                 return 0
+            if args.hosts_action == "test":
+                entry = store.get(args.name)
+                results = maxconn.scan(entry.host, ports=[entry.port], timeout=args.timeout, concurrency=1)
+                result = results[0]
+                status = "open" if result.open else "closed"
+                print(f"{entry.name} {entry.host}:{entry.port} {entry.protocol} {status} ({result.elapsed:.3f}s)")
+                return 0 if result.open else 1
             if args.hosts_action == "recent":
                 print(format_seen_hosts_table(store.list_seen()))
                 return 0
@@ -395,6 +428,24 @@ def main(argv: list[str] | None = None) -> int:
                     notes=args.notes,
                 )
                 print(f"saved host: {saved.name}")
+                return 0
+
+        if args.protocol == "history":
+            store = _history_store()
+            if args.history_action == "list":
+                entries = store.list()
+                if args.host:
+                    entries = [entry for entry in entries if entry.host == args.host or entry.alias == args.host]
+                if args.history_protocol:
+                    entries = [entry for entry in entries if entry.protocol == args.history_protocol.lower()]
+                print(format_history_table(entries))
+                return 0
+            if args.history_action == "show":
+                print(json.dumps(store.get(args.id).__dict__, indent=2, default=str))
+                return 0
+            if args.history_action == "clear":
+                store.clear()
+                print("history cleared")
                 return 0
 
         if args.protocol == "ping":
@@ -436,6 +487,26 @@ def main(argv: list[str] | None = None) -> int:
                 concurrency=args.concurrency,
                 workers=args.workers,
             )
+            if args.only_open:
+                results = [result for result in results if result.reachable]
+            if args.save_found:
+                store = _host_store()
+                for result in results:
+                    if not result.reachable:
+                        continue
+                    port = result.open_ports[0]
+                    store.add(
+                        HostEntry(
+                            name=f"host-{result.host.replace('.', '-')}-{port}",
+                            host=result.host,
+                            port=port,
+                            protocol=_protocol_for_port(port),
+                            username=None,
+                            profile=None,
+                            tags=["discovered"],
+                            notes=f"discovered from {args.network}",
+                        )
+                    )
             if _is_json_output(args):
                 _json_output(_discover_payload(args.network, results), args.export)
                 return 0 if any(result.reachable for result in results) else 1
@@ -624,6 +695,7 @@ def main(argv: list[str] | None = None) -> int:
             port=resolved_port or (23 if args.protocol == "telnet" else 22),
             username=resolved_username,
         )
+        started = time.monotonic()
         with maxconn.connect(
             resolved_host,
             protocol=args.protocol,
@@ -643,6 +715,18 @@ def main(argv: list[str] | None = None) -> int:
                 )
             result = conn.run(args.command, prompt_markers=prompt_markers, timeout=args.timeout)
             print(result.text, end="" if result.text.endswith("\n") else "\n")
+            _history_store().record(
+                alias=args.host if saved_host else None,
+                host=resolved_host,
+                port=resolved_port or (23 if args.protocol == "telnet" else 22),
+                protocol=args.protocol,
+                username=resolved_username,
+                command=args.command,
+                ok=result.ok,
+                exit_status=getattr(result, "exit_status", None),
+                duration=time.monotonic() - started,
+                origin="cli",
+            )
             return 0 if result.ok else 1
     except (MaxConnError, OSError, TimeoutError, ValueError) as exc:
         print(f"Error: {exc}", file=sys.stderr)

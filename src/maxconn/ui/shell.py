@@ -50,6 +50,7 @@ RESTART = "restart"
 EXIT = "exit"
 CLI_COMMANDS = {
     "hosts",
+    "history",
     "ping",
     "scan",
     "doctor",
