@@ -1,4 +1,32 @@
-from maxconn.transport.ssh.packet import decode_binary_packet, encode_binary_packet
+import pytest
+
+from maxconn.exceptions import ProtocolError
+from maxconn.transport.ssh.packet import (
+    MAX_PACKET_LENGTH,
+    decode_binary_packet,
+    encode_binary_packet,
+)
+
+
+def test_decode_rejects_implausibly_large_packet_length_without_reading_the_body():
+    # A malicious/misbehaving peer sends a huge length then stalls: this
+    # must be rejected before attempting to read (and buffer) that many
+    # bytes, or a client talking to attacker-influenceable hosts by design
+    # is trivially DoS'd/memory-exhausted.
+    length_bytes = (MAX_PACKET_LENGTH + 1).to_bytes(4, "big")
+    reader_state = {"data": length_bytes}
+    calls = []
+
+    def read_exact(n: int) -> bytes:
+        chunk = reader_state["data"][:n]
+        reader_state["data"] = reader_state["data"][n:]
+        calls.append(n)
+        return chunk
+
+    with pytest.raises(ProtocolError):
+        decode_binary_packet(read_exact)
+    # Only the 4-byte length field should have been read - never the huge body.
+    assert calls == [4]
 
 
 def test_encode_pads_to_block_size_multiple():

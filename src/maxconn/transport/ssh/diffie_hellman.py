@@ -68,6 +68,13 @@ def perform_diffie_hellman(
     f = reply.read_mpint()
     signature_blob = reply.read_string()
 
+    # RFC 4253 §8 (and common implementation guidance) requires rejecting a
+    # public value outside (1, P-1): a degenerate value like f=1 or f=P-1
+    # collapses the shared secret to a fixed, publicly-known number,
+    # eliminating forward secrecy for the session.
+    if not (1 < f < P - 1):
+        raise ProtocolError(f"Invalid DH public value f (out of range): {f}")
+
     shared_secret = pow(f, x, P)
     exchange_hash = compute_exchange_hash(
         client_version=client_version,
@@ -108,7 +115,10 @@ def perform_ecdh_nistp256(
     server_public_key = reply.read_string()
     signature_blob = reply.read_string()
 
-    peer_public_key = ec.EllipticCurvePublicKey.from_encoded_point(ec.SECP256R1(), server_public_key)
+    try:
+        peer_public_key = ec.EllipticCurvePublicKey.from_encoded_point(ec.SECP256R1(), server_public_key)
+    except ValueError as exc:
+        raise ProtocolError(f"Malformed ECDH server public point: {exc}") from exc
     shared_key = private_key.exchange(ec.ECDH(), peer_public_key)
     shared_secret = int.from_bytes(shared_key, "big")
     exchange_hash = compute_ecdh_exchange_hash(

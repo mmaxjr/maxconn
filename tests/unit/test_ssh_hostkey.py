@@ -109,3 +109,40 @@ def test_verify_host_key_signature_rejects_unknown_algorithm(keypair):
 
     with pytest.raises(ProtocolError):
         verify_host_key_signature(host_key_blob, signature_blob, exchange_hash)
+
+
+def test_verify_host_key_signature_accepts_signature_matching_negotiated_algorithm(keypair):
+    private_key, public_key = keypair
+    host_key_blob = _build_host_key_blob(public_key)
+    exchange_hash = b"\x77" * 32
+    signature_blob = _build_signature_blob(private_key, "rsa-sha2-256", exchange_hash)
+
+    verify_host_key_signature(
+        host_key_blob, signature_blob, exchange_hash, negotiated_algorithm="rsa-sha2-256"
+    )  # must not raise
+
+
+def test_verify_host_key_signature_rejects_signature_algorithm_downgraded_from_negotiated(keypair):
+    # The client negotiated the strong rsa-sha2-256 algorithm during
+    # KEXINIT, but the server's actual signature uses the legacy
+    # ssh-rsa/SHA-1 format instead - accepting it silently would defeat the
+    # point of negotiating the stronger algorithm in the first place.
+    private_key, public_key = keypair
+    host_key_blob = _build_host_key_blob(public_key)
+    exchange_hash = b"\x88" * 32
+    signature_blob = _build_signature_blob(private_key, "ssh-rsa", exchange_hash)
+
+    with pytest.raises(ProtocolError):
+        verify_host_key_signature(
+            host_key_blob, signature_blob, exchange_hash, negotiated_algorithm="rsa-sha2-256"
+        )
+
+
+def test_verify_host_key_signature_wraps_malformed_ec_point_as_protocol_error():
+    host_key_blob = encode_string(b"ecdsa-sha2-nistp256") + encode_string(b"nistp256") + encode_string(b"\x00\x01")
+    signature_blob = encode_string(b"ecdsa-sha2-nistp256") + encode_string(
+        encode_string(b"\x00") + encode_string(b"\x00")
+    )
+
+    with pytest.raises(ProtocolError):
+        verify_host_key_signature(host_key_blob, signature_blob, b"\x11" * 32)

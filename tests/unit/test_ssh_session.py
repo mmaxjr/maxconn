@@ -1,6 +1,7 @@
 import pytest
 
 from maxconn.exceptions import ProtocolError
+from maxconn.transport.ssh.packet import MAX_PACKET_LENGTH
 from maxconn.transport.ssh.session import SSHSessionCipher
 
 
@@ -83,6 +84,34 @@ def test_wrong_mac_key_fails_verification():
     packet = writer.encode_packet(b"payload")
     with pytest.raises(ProtocolError):
         reader.decode_packet(_make_reader(packet))
+
+
+def test_decode_rejects_implausibly_large_packet_length_without_reading_the_body():
+    # A malicious/misbehaving peer sends an oversized encrypted length
+    # field then stalls: this must be rejected right after decrypting the
+    # first block, before requesting (and buffering) the rest of a
+    # multi-hundred-kilobyte body.
+    enc_key, iv, mac_key = b"\x21" * 16, b"\x22" * 16, b"\x23" * 32
+    writer = SSHSessionCipher(enc_key, iv, mac_key)
+    reader = SSHSessionCipher(enc_key, iv, mac_key)
+
+    oversized_payload = b"x" * (MAX_PACKET_LENGTH + 1000)
+    packet = writer.encode_packet(oversized_payload)
+
+    state = {"data": packet}
+    calls = []
+
+    def read_exact(n: int) -> bytes:
+        chunk = state["data"][:n]
+        state["data"] = state["data"][n:]
+        calls.append(n)
+        return chunk
+
+    with pytest.raises(ProtocolError):
+        reader.decode_packet(read_exact)
+    # Only the first 16-byte cipher block should have been read - never the
+    # rest of the (attacker-controlled) oversized body.
+    assert calls == [16]
 
 
 def test_hmac_sha1_packets_round_trip_for_legacy_servers():

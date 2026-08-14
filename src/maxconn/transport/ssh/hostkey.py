@@ -36,17 +36,39 @@ def parse_ecdsa_nistp256_host_key(blob: bytes) -> ec.EllipticCurvePublicKey:
     if curve_name != "nistp256":
         raise ProtocolError(f"Unsupported ECDSA curve: {curve_name!r}")
     point = reader.read_string()
-    return ec.EllipticCurvePublicKey.from_encoded_point(ec.SECP256R1(), point)
+    try:
+        return ec.EllipticCurvePublicKey.from_encoded_point(ec.SECP256R1(), point)
+    except ValueError as exc:
+        raise ProtocolError(f"Malformed ECDSA host key point: {exc}") from exc
 
 
-def verify_host_key_signature(host_key_blob: bytes, signature_blob: bytes, exchange_hash: bytes) -> None:
-    """Raises ProtocolError if the signature does not validate against `exchange_hash`."""
+def verify_host_key_signature(
+    host_key_blob: bytes,
+    signature_blob: bytes,
+    exchange_hash: bytes,
+    *,
+    negotiated_algorithm: str | None = None,
+) -> None:
+    """Raises ProtocolError if the signature does not validate against `exchange_hash`.
+
+    When `negotiated_algorithm` is given (the algorithm agreed on during
+    KEXINIT), the signature's own algorithm name must match it exactly -
+    otherwise a server could negotiate a strong algorithm (e.g.
+    rsa-sha2-256) and then silently reply with a weaker one (e.g. legacy
+    ssh-rsa/SHA-1), defeating the point of negotiating the stronger one.
+    """
     key_reader = Reader(host_key_blob)
     host_key_type = key_reader.read_string().decode("ascii")
 
     reader = Reader(signature_blob)
     sig_algorithm = reader.read_string().decode("ascii")
     signature = reader.read_string()
+
+    if negotiated_algorithm is not None and sig_algorithm != negotiated_algorithm:
+        raise ProtocolError(
+            f"Host key signature algorithm {sig_algorithm!r} does not match "
+            f"negotiated algorithm {negotiated_algorithm!r}"
+        )
 
     try:
         if host_key_type == "ssh-rsa":
