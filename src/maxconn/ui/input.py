@@ -197,9 +197,10 @@ def read_line(
             continue
 
         if key == TAB:
-            matches = completer.matches(buffer)
+            text_before_cursor = buffer[:cursor]
+            matches = completer.matches(text_before_cursor)
             if len(matches) == 1:
-                token = completer.current_token(buffer)
+                token = completer.current_token(text_before_cursor)
                 remainder = matches[0][len(token) :]
                 buffer = buffer[:cursor] + remainder + buffer[cursor:]
                 cursor += len(remainder)
@@ -207,7 +208,7 @@ def read_line(
                 last_was_tab = False
             elif len(matches) > 1:
                 if last_was_tab:
-                    _print_options(completer.describe(buffer), theme, color_enabled)
+                    _print_options(completer.describe(text_before_cursor), theme, color_enabled)
                     _redraw_line(prompt_text, buffer, cursor)
                     last_was_tab = False
                 else:
@@ -215,7 +216,7 @@ def read_line(
             continue
 
         if key == QUESTION:
-            options = completer.describe(buffer) or [("(sem opções)", "")]
+            options = completer.describe(buffer[:cursor]) or [("(sem opções)", "")]
             _print_options(options, theme, color_enabled)
             sys.stdout.write(prompt_text + buffer)
             sys.stdout.flush()

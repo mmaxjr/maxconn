@@ -64,10 +64,11 @@ class HostStore:
         raise KeyError(f"host not found: {name}")
 
     def remove(self, name: str) -> None:
-        hosts = [entry for entry in self.list() if entry.name != name]
-        if len(hosts) == len(self.list()):
+        hosts = self.list()
+        filtered = [entry for entry in hosts if entry.name != name]
+        if len(filtered) == len(hosts):
             raise KeyError(f"host not found: {name}")
-        self._write_hosts(hosts)
+        self._write_hosts(filtered)
 
     def record_seen(
         self,

@@ -98,7 +98,7 @@ def _is_json_output(args: argparse.Namespace) -> bool:
 
 def _write_output(text: str, export: str | None = None) -> None:
     if export:
-        Path(export).write_text(text)
+        Path(export).write_text(text, encoding="utf-8")
     print(text)
 
 
@@ -577,7 +577,7 @@ def main(argv: list[str] | None = None) -> int:
                 print()
                 return 0
             if args.export:
-                Path(args.export).write_text(table)
+                Path(args.export).write_text(table, encoding="utf-8")
             if args.count is not None:
                 print(table)
             return 0
@@ -654,7 +654,7 @@ def main(argv: list[str] | None = None) -> int:
         resolved_username = args.username or inline_username
         resolved_password = getpass.getpass("Password: ") if args.ask_password else args.password
         try:
-            saved_host = store.get(args.host)
+            saved_host = store.get(inline_host)
         except KeyError:
             saved_host = None
         else:
@@ -662,11 +662,15 @@ def main(argv: list[str] | None = None) -> int:
                 raise ValueError(f"saved host {args.host} uses protocol {saved_host.protocol}")
             resolved_host = saved_host.host
             resolved_port = args.port if args.port is not None else saved_host.port
-            resolved_username = args.username or saved_host.username
+            resolved_username = args.username or inline_username or saved_host.username
             resolved_password = args.password or saved_host.password
 
         if not resolved_username:
             raise ValueError("--username is required unless the host alias has one saved")
+        # `0 or default` would silently discard an explicitly-requested
+        # port 0, since 0 is falsy in Python - resolved_port is already
+        # None-checked above, so an explicit 0 must be preserved here too.
+        effective_port = resolved_port if resolved_port is not None else (23 if args.protocol == "telnet" else 22)
 
         if args.save:
             password_to_save = resolved_password if args.save_password else None
@@ -680,7 +684,7 @@ def main(argv: list[str] | None = None) -> int:
                 HostEntry(
                     name=args.save,
                     host=resolved_host,
-                    port=resolved_port or (23 if args.protocol == "telnet" else 22),
+                    port=effective_port,
                     protocol=args.protocol,
                     username=resolved_username,
                     profile=args.profile or (saved_host.profile if saved_host else None),
@@ -692,7 +696,7 @@ def main(argv: list[str] | None = None) -> int:
         store.record_seen(
             resolved_host,
             protocol=args.protocol,
-            port=resolved_port or (23 if args.protocol == "telnet" else 22),
+            port=effective_port,
             username=resolved_username,
         )
         started = time.monotonic()
@@ -718,7 +722,7 @@ def main(argv: list[str] | None = None) -> int:
             _history_store().record(
                 alias=args.host if saved_host else None,
                 host=resolved_host,
-                port=resolved_port or (23 if args.protocol == "telnet" else 22),
+                port=effective_port,
                 protocol=args.protocol,
                 username=resolved_username,
                 command=args.command,
@@ -728,7 +732,7 @@ def main(argv: list[str] | None = None) -> int:
                 origin="cli",
             )
             return 0 if result.ok else 1
-    except (MaxConnError, OSError, TimeoutError, ValueError) as exc:
+    except (MaxConnError, OSError, TimeoutError, ValueError, KeyError, IndexError) as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return 1
 

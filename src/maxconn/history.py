@@ -11,8 +11,14 @@ from maxconn.hosts import DEFAULT_BASE_DIR
 
 _SECRET_PATTERNS = (
     re.compile(r"(?i)\b(password|passwd|secret|token|key)\s+\S+"),
-    re.compile(r"(?i)(--password|--passwd|--secret|--token|--key)\s+\S+"),
+    # Matches both space-separated ("--password X") and equals-sign
+    # ("--password=X") flag forms - argparse accepts both, so redaction
+    # must too.
+    re.compile(r"(?i)(--password|--passwd|--secret|--token|--key)(?:=|\s+)\S+"),
 )
+# scheme://user:PASSWORD@host - only the credential between ":" and "@" is
+# redacted, so the username/host stay visible for context.
+_URL_CREDENTIAL_PATTERN = re.compile(r"([a-zA-Z][\w+.-]*://[^\s:/@]+:)([^\s@]+)(@)")
 
 
 @dataclass(frozen=True)
@@ -136,6 +142,7 @@ def _redact(value: str | None) -> str | None:
     redacted = value
     for pattern in _SECRET_PATTERNS:
         redacted = pattern.sub(lambda match: f"{match.group(1)} <redacted>", redacted)
+    redacted = _URL_CREDENTIAL_PATTERN.sub(lambda match: f"{match.group(1)}<redacted>{match.group(3)}", redacted)
     return redacted
 
 

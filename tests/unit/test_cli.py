@@ -1,7 +1,7 @@
 import json
 
 import maxconn.cli
-from maxconn.exceptions import ProtocolError
+from maxconn.exceptions import ConnectionTimeoutError, ProtocolError
 from maxconn.hosts import HostEntry, HostStore
 from maxconn.ui.theme import get_theme
 
@@ -269,6 +269,37 @@ def test_cli_ssh_save_records_host_and_recent(monkeypatch, tmp_path):
 
     assert store.get("olt-01").host == "10.0.0.1"
     assert store.list_seen()[0].host == "10.0.0.1"
+
+
+def test_cli_ssh_save_preserves_explicit_port_zero(monkeypatch, tmp_path):
+    # Regression: `resolved_port or default_port` treats an explicit
+    # `--port 0` the same as "no port given" (0 is falsy in Python) and
+    # silently substitutes the protocol default instead.
+    store = HostStore(base_dir=tmp_path)
+
+    monkeypatch.setattr(maxconn.cli, "_host_store", lambda: store)
+    monkeypatch.setattr(maxconn.cli.maxconn, "connect", lambda host, **kwargs: FakeConnection())
+
+    assert (
+        maxconn.cli.main(
+            [
+                "ssh",
+                "10.0.0.1",
+                "--username",
+                "admin",
+                "--port",
+                "0",
+                "--command",
+                "show version",
+                "--save",
+                "olt-01",
+            ]
+        )
+        == 0
+    )
+
+    assert store.get("olt-01").port == 0
+    assert store.list_seen()[0].port == 0
 
 
 def test_cli_ssh_save_password_is_explicit(monkeypatch, tmp_path, capsys):
@@ -560,6 +591,29 @@ def test_cli_mtr_can_export_output(monkeypatch, tmp_path):
 
     assert exit_code == 0
     assert export_path.read_text() == "mtr report"
+
+
+def test_cli_mtr_export_uses_utf8_regardless_of_system_locale(monkeypatch, tmp_path):
+    export_path = tmp_path / "mtr.txt"
+
+    def fake_run_mtr_table(
+        host,
+        count=None,
+        timeout=1.0,
+        trace_timeout=30.0,
+        rediscover_every=None,
+        interval=1.0,
+        output="table",
+        clear=True,
+    ):
+        return "mtr report: ☎ 100% loss"  # U+260E, outside cp1252 entirely
+
+    monkeypatch.setattr(maxconn.cli, "run_mtr_table", fake_run_mtr_table)
+
+    exit_code = maxconn.cli.main(["mtr", "192.0.2.1", "--count", "1", "--export", str(export_path)])
+
+    assert exit_code == 0
+    assert export_path.read_text(encoding="utf-8") == "mtr report: ☎ 100% loss"
 
 
 def test_cli_snmp_get_prints_value(monkeypatch, capsys):
@@ -916,6 +970,80 @@ def test_cli_hosts_show_and_remove(monkeypatch, tmp_path, capsys):
 
     assert maxconn.cli.main(["hosts", "remove", "olt-01"]) == 0
     assert store.list() == []
+
+
+def test_write_output_export_uses_utf8_regardless_of_system_locale(tmp_path):
+    # Path.write_text() without an explicit encoding uses
+    # locale.getpreferredencoding(), which on Windows is often a legacy
+    # codepage (cp1252/cp850) that cannot represent every character -
+    # --export must not depend on the OS locale to avoid data loss/crashes.
+    export_path = tmp_path / "out.txt"
+    text_with_non_latin1_char = "device reply: ☎ ok"  # U+260E, outside cp1252 entirely
+
+    maxconn.cli._write_output(text_with_non_latin1_char, str(export_path))
+
+    assert export_path.read_text(encoding="utf-8") == text_with_non_latin1_char
+
+
+def test_cli_hosts_show_missing_name_prints_clean_error(monkeypatch, tmp_path, capsys):
+    store = HostStore(base_dir=tmp_path)
+    monkeypatch.setattr(maxconn.cli, "_host_store", lambda: store)
+
+    assert maxconn.cli.main(["hosts", "show", "does-not-exist"]) == 1
+    assert "does-not-exist" in capsys.readouterr().err
+
+
+def test_cli_hosts_remove_missing_name_prints_clean_error(monkeypatch, tmp_path, capsys):
+    store = HostStore(base_dir=tmp_path)
+    monkeypatch.setattr(maxconn.cli, "_host_store", lambda: store)
+
+    assert maxconn.cli.main(["hosts", "remove", "does-not-exist"]) == 1
+    assert "does-not-exist" in capsys.readouterr().err
+
+
+def test_cli_hosts_test_missing_name_prints_clean_error(monkeypatch, tmp_path, capsys):
+    store = HostStore(base_dir=tmp_path)
+    monkeypatch.setattr(maxconn.cli, "_host_store", lambda: store)
+
+    assert maxconn.cli.main(["hosts", "test", "does-not-exist"]) == 1
+    assert "does-not-exist" in capsys.readouterr().err
+
+
+def test_cli_hosts_save_recent_out_of_range_prints_clean_error(monkeypatch, tmp_path, capsys):
+    store = HostStore(base_dir=tmp_path)
+    monkeypatch.setattr(maxconn.cli, "_host_store", lambda: store)
+
+    assert maxconn.cli.main(["hosts", "save-recent", "1", "--name", "olt-01"]) == 1
+    assert "out of range" in capsys.readouterr().err
+
+
+def test_cli_ssh_resolves_saved_host_when_given_as_user_at_alias(monkeypatch, tmp_path, capsys):
+    # Regression: `maxconn ssh admin@bgp-view` must resolve the saved host
+    # "bgp-view", not silently skip it because the lookup used the raw
+    # "admin@bgp-view" string instead of the already-split alias.
+    store = HostStore(base_dir=tmp_path)
+    store.add(
+        HostEntry(
+            name="bgp-view",
+            host="177.84.161.226",
+            port=22,
+            protocol="ssh",
+            username="bgp_view",
+        )
+    )
+    monkeypatch.setattr(maxconn.cli, "_host_store", lambda: store)
+
+    calls = []
+
+    def fake_connect(host, *, protocol, username, password, port, timeout):
+        calls.append({"host": host, "username": username, "port": port})
+        raise ConnectionTimeoutError("simulated: test never hits the network")
+
+    monkeypatch.setattr(maxconn.cli.maxconn, "connect", fake_connect)
+
+    maxconn.cli.main(["ssh", "admin@bgp-view", "--command", "show version"])
+
+    assert calls == [{"host": "177.84.161.226", "username": "admin", "port": 22}]
 
 
 def test_cli_hosts_recent_and_save_recent(monkeypatch, tmp_path, capsys):
