@@ -48,19 +48,13 @@ def render_banner(theme, color_enabled: bool) -> None:
 CONTINUE = "continue"
 RESTART = "restart"
 EXIT = "exit"
-CLI_COMMANDS = {
-    "hosts",
-    "history",
-    "ping",
-    "scan",
-    "doctor",
-    "selftest",
-    "discover",
-    "traceroute",
-    "mtr",
-    "sftp",
-    "snmp",
-}
+# Commands with their own bespoke handling in run_command() below, rather
+# than a plain pass-through to the real CLI. Every other name in COMMANDS
+# is assumed to be a real maxconn.cli subcommand and dispatched as such -
+# CLI_COMMANDS is derived from that relationship instead of being a second,
+# separately hand-maintained list that can drift out of sync with COMMANDS.
+SPECIAL_COMMANDS = {"exit", "quit", "reboot", "restart", "help", "theme", "ssh", "telnet", "open", "connect"}
+CLI_COMMANDS = set(COMMANDS) - SPECIAL_COMMANDS
 
 
 def _host_store() -> HostStore:
@@ -142,10 +136,6 @@ def run_command(name: str, args: list[str], theme, color_enabled: bool, line: st
 
     if name in CLI_COMMANDS:
         _run_maxconn_cli_safe([name, *args], theme, color_enabled)
-        return CONTINUE
-
-    if name in COMMANDS:
-        print(theme.muted.render(f"[preview] executaria: {name} {' '.join(args)}", enabled=color_enabled))
         return CONTINUE
 
     run_system_command(line, theme, color_enabled)

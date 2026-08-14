@@ -1,7 +1,27 @@
 from __future__ import annotations
 
+import inspect
+
 from maxconn.ui import shell
 from maxconn.ui.theme import get_theme
+
+
+def test_cli_commands_is_derived_from_commands_registry_not_hand_duplicated():
+    # CLI_COMMANDS used to be a second, separately hand-typed set that had
+    # to be kept in sync with COMMANDS by hand every time a command was
+    # added - deriving it once from the same registry makes that class of
+    # drift impossible.
+    assert shell.CLI_COMMANDS == set(shell.COMMANDS) - shell.SPECIAL_COMMANDS
+    assert "hosts" in shell.CLI_COMMANDS  # a real CLI-dispatched command
+    assert "theme" not in shell.CLI_COMMANDS  # has its own bespoke handling
+
+
+def test_run_command_has_no_unreachable_preview_fallback():
+    # Every name in COMMANDS is either specially handled above or lands in
+    # CLI_COMMANDS by construction, so the old "[preview] executaria: ..."
+    # branch could never actually run - dead code, now removed.
+    source = inspect.getsource(shell.run_command)
+    assert "[preview]" not in source
 
 
 def test_shell_ssh_dispatches_to_maxconn_cli(monkeypatch):
