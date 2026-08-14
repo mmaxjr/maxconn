@@ -306,7 +306,7 @@ def test_cli_prints_package_version(capsys):
     exit_code = maxconn.cli.main(["--version"])
 
     assert exit_code == 0
-    assert "maxconn 0.1.18" in capsys.readouterr().out
+    assert "maxconn 0.1.19" in capsys.readouterr().out
 
 
 def test_cli_prints_package_version_from_sys_argv(monkeypatch, capsys):
@@ -315,7 +315,7 @@ def test_cli_prints_package_version_from_sys_argv(monkeypatch, capsys):
     exit_code = maxconn.cli.main()
 
     assert exit_code == 0
-    assert "maxconn 0.1.18" in capsys.readouterr().out
+    assert "maxconn 0.1.19" in capsys.readouterr().out
 
 
 def test_cli_ping_prints_reachable_status(monkeypatch, capsys):
@@ -943,6 +943,35 @@ def test_cli_hosts_recent_and_save_recent(monkeypatch, tmp_path, capsys):
         == 0
     )
     assert store.get("olt-01").host == "10.0.0.1"
+
+
+def test_cli_hosts_test_scans_saved_host_port(monkeypatch, tmp_path, capsys):
+    store = HostStore(base_dir=tmp_path)
+    store.add(
+        HostEntry(
+            name="olt-01",
+            host="10.0.0.1",
+            port=22,
+            protocol="ssh",
+            username="admin",
+        )
+    )
+    calls = []
+
+    monkeypatch.setattr(maxconn.cli, "_host_store", lambda: store)
+    monkeypatch.setattr(
+        maxconn.cli.maxconn,
+        "scan",
+        lambda host, *, ports, timeout, concurrency: calls.append((host, ports, timeout, concurrency))
+        or [type("Result", (), {"open": True, "port": 22, "elapsed": 0.01})()],
+    )
+
+    assert maxconn.cli.main(["hosts", "test", "olt-01"]) == 0
+
+    output = capsys.readouterr().out
+    assert calls == [("10.0.0.1", [22], 1.0, 1)]
+    assert "olt-01" in output
+    assert "open" in output
 
 
 def test_cli_doctor_prints_environment(capsys):

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 COMMANDS: dict[str, str] = {
     "hosts": "manage local saved hosts",
+    "history": "manage local command history",
     "ping": "probe host reachability",
     "scan": "scan tcp ports",
     "doctor": "print local environment diagnostics",
