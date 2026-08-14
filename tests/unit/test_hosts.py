@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import threading
+import time
+
 from maxconn.hosts import (
     HostEntry,
     HostStore,
@@ -28,6 +31,33 @@ def test_host_store_add_list_show_and_remove(tmp_path):
 
     store.remove("olt-01")
     assert store.list() == []
+
+
+def test_host_store_add_is_safe_under_concurrent_writers(tmp_path, monkeypatch):
+    # Regression: add() does read-all -> merge -> write-all with no lock,
+    # so two concurrent add() calls can both read the same snapshot and
+    # each write back a version missing the other's entry (lost update).
+    # Widen the race window deterministically by slowing down the read.
+    store = HostStore(base_dir=tmp_path)
+    original_list = HostStore.list
+
+    def slow_list(self):
+        result = original_list(self)
+        time.sleep(0.01)
+        return result
+
+    monkeypatch.setattr(HostStore, "list", slow_list)
+
+    def add_one(i):
+        store.add(HostEntry(name=f"host-{i}", host="10.0.0.1", port=22, protocol="ssh", username="admin"))
+
+    threads = [threading.Thread(target=add_one, args=(i,)) for i in range(4)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+
+    assert len(store.list()) == 4
 
 
 def test_host_store_remove_reads_the_host_list_only_once(tmp_path, monkeypatch):

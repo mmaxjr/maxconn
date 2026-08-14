@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from maxconn._file_lock import locked
 from maxconn.hosts import DEFAULT_BASE_DIR
 
 _SECRET_PATTERNS = (
@@ -59,24 +60,25 @@ class HistoryStore:
         duration: float,
         origin: str,
     ) -> HistoryEntry:
-        entry = HistoryEntry(
-            id=self._next_id(),
-            timestamp=_now(),
-            alias=alias,
-            host=host,
-            port=port,
-            protocol=protocol,
-            username=username,
-            command=_redact(command),
-            ok=ok,
-            exit_status=exit_status,
-            duration=duration,
-            origin=origin,
-        )
-        self.history_path.parent.mkdir(parents=True, exist_ok=True)
-        with self.history_path.open("a", encoding="utf-8") as handle:
-            handle.write(json.dumps(asdict(entry), sort_keys=True) + "\n")
-        return entry
+        with locked(self.history_path):
+            entry = HistoryEntry(
+                id=self._next_id(),
+                timestamp=_now(),
+                alias=alias,
+                host=host,
+                port=port,
+                protocol=protocol,
+                username=username,
+                command=_redact(command),
+                ok=ok,
+                exit_status=exit_status,
+                duration=duration,
+                origin=origin,
+            )
+            self.history_path.parent.mkdir(parents=True, exist_ok=True)
+            with self.history_path.open("a", encoding="utf-8") as handle:
+                handle.write(json.dumps(asdict(entry), sort_keys=True) + "\n")
+            return entry
 
     def list(self) -> list[HistoryEntry]:
         if not self.history_path.exists():
