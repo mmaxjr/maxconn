@@ -1,20 +1,18 @@
 from __future__ import annotations
 
 import json
-import os
 from pathlib import Path
 
-
-def config_path() -> Path:
-    if os.name == "nt":
-        base = Path(os.environ.get("APPDATA", str(Path.home())))
-    else:
-        base = Path(os.environ.get("XDG_CONFIG_HOME", str(Path.home() / ".config")))
-    return base / "maxconn" / "config.json"
+from maxconn.hosts import DEFAULT_BASE_DIR
 
 
-def load_theme() -> str | None:
-    path = config_path()
+def config_path(base_dir: str | Path | None = None) -> Path:
+    base = Path(base_dir) if base_dir is not None else DEFAULT_BASE_DIR
+    return base / "config.json"
+
+
+def load_theme(base_dir: str | Path | None = None) -> str | None:
+    path = config_path(base_dir)
     if not path.exists():
         return None
     try:
@@ -24,7 +22,7 @@ def load_theme() -> str | None:
         return None
 
 
-def save_theme(name: str) -> None:
-    path = config_path()
+def save_theme(name: str, base_dir: str | Path | None = None) -> None:
+    path = config_path(base_dir)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps({"theme": name}, indent=2), encoding="utf-8")
