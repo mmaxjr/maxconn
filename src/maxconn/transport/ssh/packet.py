@@ -21,6 +21,12 @@ from collections.abc import Callable
 from maxconn.exceptions import ProtocolError
 
 MIN_PADDING = 4
+# RFC 4253 §6.1 only requires handling payloads up to 32768 bytes and
+# recommends implementations tolerate somewhat more; 256 KiB matches what
+# OpenSSH itself enforces as a hard cap. Rejecting an implausible length
+# up front avoids buffering attacker-controlled gigabytes before finding
+# out the packet was bogus.
+MAX_PACKET_LENGTH = 256 * 1024
 
 
 def encode_binary_packet(
@@ -47,6 +53,8 @@ def decode_binary_packet(read_exact: Callable[[int], bytes]) -> bytes:
     if len(length_bytes) != 4:
         raise ProtocolError("Connection closed while reading SSH packet length")
     packet_length = struct.unpack(">I", length_bytes)[0]
+    if packet_length > MAX_PACKET_LENGTH:
+        raise ProtocolError(f"SSH packet length {packet_length} exceeds the {MAX_PACKET_LENGTH}-byte limit")
 
     body = read_exact(packet_length)
     if len(body) != packet_length:

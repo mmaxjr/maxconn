@@ -18,7 +18,7 @@ from collections.abc import Callable
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 
 from maxconn.exceptions import ProtocolError
-from maxconn.transport.ssh.packet import MIN_PADDING
+from maxconn.transport.ssh.packet import MAX_PACKET_LENGTH, MIN_PADDING
 
 BLOCK_SIZE = 16  # AES block size
 MAC_SIZES = {"hmac-sha2-256": 32, "hmac-sha1": 20}
@@ -74,6 +74,8 @@ class SSHSessionCipher:
         total_frame = 4 + packet_length
         if total_frame < BLOCK_SIZE:
             raise ProtocolError(f"Invalid SSH packet length: {packet_length}")
+        if packet_length > MAX_PACKET_LENGTH:
+            raise ProtocolError(f"SSH packet length {packet_length} exceeds the {MAX_PACKET_LENGTH}-byte limit")
 
         remaining_cipher = read_exact(total_frame - BLOCK_SIZE)
         remaining_plain = self._decryptor.update(remaining_cipher)
