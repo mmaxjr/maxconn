@@ -6,6 +6,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from maxconn._file_lock import locked
+
 DEFAULT_BASE_DIR = Path.home() / ".maxconn"
 
 
@@ -47,9 +49,10 @@ class HostStore:
         self.seen_hosts_path = self.base_dir / "seen_hosts.json"
 
     def add(self, entry: HostEntry) -> None:
-        hosts = {host.name: host for host in self.list()}
-        hosts[entry.name] = entry
-        self._write_hosts(list(hosts.values()))
+        with locked(self.hosts_path):
+            hosts = {host.name: host for host in self.list()}
+            hosts[entry.name] = entry
+            self._write_hosts(list(hosts.values()))
 
     def list(self) -> list[HostEntry]:
         return sorted(
@@ -64,11 +67,12 @@ class HostStore:
         raise KeyError(f"host not found: {name}")
 
     def remove(self, name: str) -> None:
-        hosts = self.list()
-        filtered = [entry for entry in hosts if entry.name != name]
-        if len(filtered) == len(hosts):
-            raise KeyError(f"host not found: {name}")
-        self._write_hosts(filtered)
+        with locked(self.hosts_path):
+            hosts = self.list()
+            filtered = [entry for entry in hosts if entry.name != name]
+            if len(filtered) == len(hosts):
+                raise KeyError(f"host not found: {name}")
+            self._write_hosts(filtered)
 
     def record_seen(
         self,
@@ -79,39 +83,40 @@ class HostStore:
         username: str | None,
     ) -> SeenHostEntry:
         now = _now()
-        entries = self.list_seen()
-        for index, entry in enumerate(entries):
-            if (
-                entry.host == host
-                and entry.protocol == protocol.lower()
-                and entry.port == port
-                and entry.username == username
-            ):
-                updated = SeenHostEntry(
-                    host=entry.host,
-                    protocol=entry.protocol,
-                    port=entry.port,
-                    username=entry.username,
-                    first_seen=entry.first_seen,
-                    last_seen=now,
-                    count=entry.count + 1,
-                )
-                entries[index] = updated
-                self._write_seen(entries)
-                return updated
+        with locked(self.seen_hosts_path):
+            entries = self.list_seen()
+            for index, entry in enumerate(entries):
+                if (
+                    entry.host == host
+                    and entry.protocol == protocol.lower()
+                    and entry.port == port
+                    and entry.username == username
+                ):
+                    updated = SeenHostEntry(
+                        host=entry.host,
+                        protocol=entry.protocol,
+                        port=entry.port,
+                        username=entry.username,
+                        first_seen=entry.first_seen,
+                        last_seen=now,
+                        count=entry.count + 1,
+                    )
+                    entries[index] = updated
+                    self._write_seen(entries)
+                    return updated
 
-        created = SeenHostEntry(
-            host=host,
-            protocol=protocol,
-            port=port,
-            username=username,
-            first_seen=now,
-            last_seen=now,
-            count=1,
-        )
-        entries.append(created)
-        self._write_seen(entries)
-        return created
+            created = SeenHostEntry(
+                host=host,
+                protocol=protocol,
+                port=port,
+                username=username,
+                first_seen=now,
+                last_seen=now,
+                count=1,
+            )
+            entries.append(created)
+            self._write_seen(entries)
+            return created
 
     def list_seen(self) -> list[SeenHostEntry]:
         entries = [self._seen_from_dict(item) for item in self._read_json(self.seen_hosts_path)]
