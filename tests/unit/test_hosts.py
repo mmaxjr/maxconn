@@ -30,6 +30,27 @@ def test_host_store_add_list_show_and_remove(tmp_path):
     assert store.list() == []
 
 
+def test_host_store_remove_reads_the_host_list_only_once(tmp_path, monkeypatch):
+    # remove() must not re-read/re-parse hosts.json a second time just to
+    # check whether the name existed - besides being wasteful, a second
+    # read is racy against a concurrent write between the two reads.
+    store = HostStore(base_dir=tmp_path)
+    store.add(HostEntry(name="olt-01", host="10.0.0.1", port=22, protocol="ssh", username="admin"))
+
+    calls = []
+    original_list = HostStore.list
+
+    def counting_list(self):
+        calls.append(1)
+        return original_list(self)
+
+    monkeypatch.setattr(HostStore, "list", counting_list)
+
+    store.remove("olt-01")
+
+    assert len(calls) == 1
+
+
 def test_hosts_table_uses_required_columns():
     entry = HostEntry(
         name="olt-01",
