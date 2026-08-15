@@ -19,6 +19,12 @@ _CONTROL_ONLY_MESSAGES = (
     messages.SSH_MSG_CHANNEL_FAILURE,
     messages.SSH_MSG_CHANNEL_REQUEST,  # e.g. "exit-status" - informational only
     messages.SSH_MSG_CHANNEL_EOF,
+    # Connection-level messages a server or SSH-aware middlebox can
+    # legitimately send at any point in the session (e.g. a keepalive
+    # SSH_MSG_IGNORE) - not tied to any particular channel, safe to skip.
+    messages.SSH_MSG_IGNORE,
+    messages.SSH_MSG_DEBUG,
+    messages.SSH_MSG_GLOBAL_REQUEST,
 )
 
 

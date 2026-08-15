@@ -3,19 +3,15 @@
 from __future__ import annotations
 
 import logging
-import re
 import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
+from maxconn._redact import redact as _redact
 from maxconn.automation import ExpectSession, PromptProfile
 from maxconn.exceptions import ConnectionTimeoutError
 
 _AUDIT_LOG = logging.getLogger("maxconn.audit")
-_SECRET_PATTERNS = (
-    re.compile(r"(?i)\b(password|passwd|secret|token|key)\s+\S+"),
-    re.compile(r"(?i)(--password|--passwd|--secret|--token|--key)\s+\S+"),
-)
 
 
 class Transport(ABC):
@@ -153,10 +149,3 @@ class Connection:
 
     def __exit__(self, exc_type, exc, tb) -> None:
         self.close()
-
-
-def _redact(value: str) -> str:
-    redacted = value
-    for pattern in _SECRET_PATTERNS:
-        redacted = pattern.sub(lambda match: f"{match.group(1)} <redacted>", redacted)
-    return redacted

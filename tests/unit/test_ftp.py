@@ -3,15 +3,18 @@ from __future__ import annotations
 import socket
 import threading
 
+import pytest
+
 from maxconn.protocol.ftp import FTPClient
 
 
 class _FTPServer:
-    def __init__(self) -> None:
+    def __init__(self, *, reject_login: bool = False) -> None:
         self.control = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.control.bind(("127.0.0.1", 0))
         self.control.listen(1)
         self.port = self.control.getsockname()[1]
+        self.reject_login = reject_login
         self.thread = threading.Thread(target=self._serve, daemon=True)
 
     def start(self) -> None:
@@ -28,6 +31,9 @@ class _FTPServer:
                 if command == "USER":
                     self._send(conn, "331 password required")
                 elif command == "PASS":
+                    if self.reject_login:
+                        self._send(conn, "530 login incorrect")
+                        continue
                     self._send(conn, "230 logged in")
                 elif command == "TYPE":
                     self._send(conn, "200 type set")
@@ -84,3 +90,33 @@ def test_ftp_client_logs_in_lists_and_downloads_file():
 
     assert "file.txt" in listing
     assert data == b"contents of file.txt"
+
+
+def test_ftp_client_connect_closes_the_socket_when_login_fails(monkeypatch):
+    # Regression: connect() opened the control socket before running the
+    # banner/login sequence, but never closed it if that sequence raised -
+    # a rejected login leaked the socket.
+    server = _FTPServer(reject_login=True)
+    server.start()
+
+    created_sockets = []
+    real_create_connection = socket.create_connection
+
+    def capturing_create_connection(*args, **kwargs):
+        sock = real_create_connection(*args, **kwargs)
+        created_sockets.append(sock)
+        return sock
+
+    monkeypatch.setattr(socket, "create_connection", capturing_create_connection)
+
+    with pytest.raises(ValueError, match="530"):
+        FTPClient.connect(
+            "127.0.0.1",
+            port=server.port,
+            username="user",
+            password="wrong",
+            timeout=1.0,
+        )
+
+    assert len(created_sockets) == 1
+    assert created_sockets[0].fileno() == -1  # closed sockets report fileno() == -1

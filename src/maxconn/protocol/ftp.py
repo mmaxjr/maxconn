@@ -30,9 +30,13 @@ class FTPClient:
         sock = socket.create_connection((host, port), timeout=timeout)
         sock.settimeout(timeout)
         client = cls(sock, timeout=timeout)
-        client._expect(220)
-        client._login(username, password)
-        client._command("TYPE I", expected=200)
+        try:
+            client._expect(220)
+            client._login(username, password)
+            client._command("TYPE I", expected=200)
+        except Exception:
+            client.close()
+            raise
         return client
 
     def __enter__(self) -> FTPClient:
@@ -61,7 +65,12 @@ class FTPClient:
     def close(self) -> None:
         try:
             self._command("QUIT", expected=221)
-        except OSError:
+        except (OSError, ValueError):
+            # close() must be a safe best-effort cleanup call - a server
+            # that drops the connection or replies unexpectedly to QUIT
+            # (e.g. right after rejecting a login) must not stop the
+            # socket itself from being closed below, and must not mask
+            # whatever exception the caller is already propagating.
             pass
         finally:
             self._file.close()

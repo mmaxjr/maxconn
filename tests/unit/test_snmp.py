@@ -2,14 +2,18 @@ from __future__ import annotations
 
 import socket
 
+import pytest
+
+from maxconn.exceptions import ProtocolError
 from maxconn.protocol.snmp import SNMPClient
 
 
 class FakeUDPSocket:
-    def __init__(self, responses: list[bytes]) -> None:
+    def __init__(self, responses: list[bytes], *, source_addr: tuple[str, int] = ("127.0.0.1", 161)) -> None:
         self.responses = responses
         self.sent: list[bytes] = []
         self.timeout: float | None = None
+        self.source_addr = source_addr
 
     def settimeout(self, timeout: float) -> None:
         self.timeout = timeout
@@ -18,7 +22,7 @@ class FakeUDPSocket:
         self.sent.append(data)
 
     def recvfrom(self, size: int) -> tuple[bytes, tuple[str, int]]:
-        return self.responses.pop(0), ("127.0.0.1", 161)
+        return self.responses.pop(0), self.source_addr
 
     def close(self) -> None:
         pass
@@ -58,6 +62,30 @@ def test_snmp_walk_uses_getnext_until_oid_leaves_prefix(monkeypatch):
         ("1.3.6.1.2.1.1.5.0", "router-01"),
     ]
     assert len(fake.sent) == 3
+
+
+def test_snmp_get_rejects_a_response_from_an_unexpected_source_address(monkeypatch):
+    # Regression: the client discarded recvfrom()'s sender address entirely,
+    # so any host that could reach the ephemeral UDP port could inject a
+    # fake response before the real device replied.
+    fake = FakeUDPSocket(
+        [_response("1.3.6.1.2.1.1.5.0", b"attacker-controlled")],
+        source_addr=("10.0.0.99", 161),  # not the host we sent the request to
+    )
+    monkeypatch.setattr(socket, "socket", lambda family, type: fake)
+
+    with pytest.raises(ProtocolError, match="unexpected source"):
+        SNMPClient("127.0.0.1", community="public", timeout=1.0).get("1.3.6.1.2.1.1.5.0")
+
+
+def test_snmp_get_raises_a_clean_error_on_truncated_response(monkeypatch):
+    # Regression: a short/garbled BER response raised a raw IndexError from
+    # deep inside the parser instead of a catchable library exception.
+    fake = FakeUDPSocket([b"\x30\x7f"])  # claims a 0x7f-byte sequence, body is empty
+    monkeypatch.setattr(socket, "socket", lambda family, type: fake)
+
+    with pytest.raises(ValueError):
+        SNMPClient("127.0.0.1", community="public", timeout=1.0).get("1.3.6.1.2.1.1.5.0")
 
 
 def _response(oid: str, value: bytes) -> bytes:
