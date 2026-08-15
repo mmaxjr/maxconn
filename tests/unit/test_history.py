@@ -2,8 +2,17 @@ from __future__ import annotations
 
 import threading
 import time
+from datetime import datetime, timedelta, timezone
 
-from maxconn.history import HistoryEntry, HistoryStore, format_history_table
+import pytest
+
+from maxconn.history import (
+    HistoryEntry,
+    HistoryStore,
+    format_history_csv,
+    format_history_table,
+    parse_since,
+)
 
 
 def test_history_store_records_entries_without_secrets(tmp_path):
@@ -135,3 +144,54 @@ def test_history_table_shows_core_fields():
     assert "COMMAND" in table
     assert "olt-01" in table
     assert "show version" in table
+
+
+def test_history_csv_includes_header_and_rows():
+    csv_text = format_history_csv(
+        [
+            HistoryEntry(
+                id=1,
+                timestamp="2026-08-14T10:00:00+00:00",
+                alias="olt-01",
+                host="10.0.0.1",
+                port=22,
+                protocol="ssh",
+                username="admin",
+                command="show version",
+                ok=True,
+                exit_status=0,
+                duration=0.1,
+                origin="cli",
+            )
+        ]
+    )
+
+    lines = csv_text.strip().splitlines()
+    assert lines[0].split(",")[:3] == ["id", "timestamp", "alias"]
+    assert "olt-01" in lines[1]
+    assert "show version" in lines[1]
+
+
+def test_parse_since_today_matches_start_of_current_utc_day():
+    now = datetime(2026, 8, 14, 15, 30, tzinfo=timezone.utc)
+    assert parse_since("today", now=now) == datetime(2026, 8, 14, 0, 0, tzinfo=timezone.utc)
+
+
+def test_parse_since_yesterday_is_one_day_before_today():
+    now = datetime(2026, 8, 14, 15, 30, tzinfo=timezone.utc)
+    assert parse_since("yesterday", now=now) == datetime(2026, 8, 13, 0, 0, tzinfo=timezone.utc)
+
+
+def test_parse_since_relative_hours_and_days():
+    now = datetime(2026, 8, 14, 15, 30, tzinfo=timezone.utc)
+    assert parse_since("24h", now=now) == now - timedelta(hours=24)
+    assert parse_since("7d", now=now) == now - timedelta(days=7)
+
+
+def test_parse_since_accepts_an_iso_date():
+    assert parse_since("2026-08-01") == datetime(2026, 8, 1, tzinfo=timezone.utc)
+
+
+def test_parse_since_rejects_garbage():
+    with pytest.raises(ValueError):
+        parse_since("not-a-real-date")
