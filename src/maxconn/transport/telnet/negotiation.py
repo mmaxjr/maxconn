@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from maxconn.exceptions import ProtocolError
+
 IAC = 255
 DONT = 254
 DO = 253
@@ -15,6 +17,10 @@ OPT_SUPPRESS_GO_AHEAD = 3
 
 _ACCEPTED_SERVER_WILL = {OPT_ECHO, OPT_SUPPRESS_GO_AHEAD}
 _NEGOTIATION_COMMANDS = (WILL, WONT, DO, DONT)
+# Real option negotiation payloads (terminal type, window size, ...) are a
+# handful of bytes; a peer that never closes a subnegotiation with IAC SE
+# must not be allowed to grow the buffer without bound across feed() calls.
+MAX_SUBNEGOTIATION_SIZE = 4096
 
 
 class TelnetNegotiator:
@@ -90,5 +96,7 @@ class TelnetNegotiator:
         while j + 1 < len(buf):
             if buf[j] == IAC and buf[j + 1] == SE:
                 return j + 2
+            if j - start > MAX_SUBNEGOTIATION_SIZE:
+                raise ProtocolError("Telnet subnegotiation exceeded maximum size without IAC SE")
             j += 1
         return None

@@ -6,7 +6,7 @@ import socket
 import time
 
 from maxconn.exceptions import AuthenticationError, ConnectionTimeoutError, ProtocolError
-from maxconn.transport.base import Transport
+from maxconn.transport.base import DEFAULT_RECV_TIMEOUT, Transport
 from maxconn.transport.telnet.negotiation import TelnetNegotiator
 
 
@@ -61,7 +61,7 @@ class TelnetTransport(Transport):
         payload = data.encode() if isinstance(data, str) else data
         self._sock.sendall(payload)
 
-    def recv(self, timeout: float | None = None) -> bytes:
+    def recv(self, timeout: float = DEFAULT_RECV_TIMEOUT) -> bytes:
         if self._sock is None:
             raise ProtocolError("Cannot recv: not connected")
         self._sock.settimeout(timeout)

@@ -12,6 +12,11 @@ from maxconn.automation import ExpectSession, PromptProfile
 from maxconn.exceptions import ConnectionTimeoutError
 
 _AUDIT_LOG = logging.getLogger("maxconn.audit")
+# Python socket semantics treat timeout=None as "block forever," not "use a
+# sensible default." Connection.recv()/.send() are documented as public
+# low-level escape hatches, so a caller that omits the argument must not
+# silently hang forever against a device that stops responding.
+DEFAULT_RECV_TIMEOUT = 30.0
 
 
 class Transport(ABC):
@@ -34,7 +39,7 @@ class Transport(ABC):
     def send(self, data: bytes | str) -> None: ...
 
     @abstractmethod
-    def recv(self, timeout: float | None = None) -> bytes: ...
+    def recv(self, timeout: float = DEFAULT_RECV_TIMEOUT) -> bytes: ...
 
     @abstractmethod
     def close(self) -> None: ...
@@ -135,7 +140,7 @@ class Connection:
     def send(self, data: bytes | str) -> None:
         self._transport.send(data)
 
-    def recv(self, timeout: float | None = None) -> bytes:
+    def recv(self, timeout: float = DEFAULT_RECV_TIMEOUT) -> bytes:
         return self._transport.recv(timeout=timeout)
 
     def read_until(self, marker: str, timeout: float = 10.0) -> str:

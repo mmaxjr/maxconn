@@ -8,7 +8,7 @@ import socket
 from cryptography.hazmat.primitives.asymmetric import rsa
 
 from maxconn.exceptions import AuthenticationError, ConnectionTimeoutError, ProtocolError
-from maxconn.transport.base import Transport
+from maxconn.transport.base import DEFAULT_RECV_TIMEOUT, Transport
 from maxconn.transport.ssh.auth import (
     authenticate_password,
     authenticate_publickey,
@@ -73,7 +73,7 @@ class SSHTransport(Transport):
         payload = data.encode() if isinstance(data, str) else data
         self._channel.send_data(payload)
 
-    def recv(self, timeout: float | None = None) -> bytes:
+    def recv(self, timeout: float = DEFAULT_RECV_TIMEOUT) -> bytes:
         if self._channel is None:
             raise ProtocolError("Cannot recv: not authenticated")
         if self._sock is not None:
