@@ -5,13 +5,14 @@
 [![CI](https://github.com/mmaxjr/maxconn/actions/workflows/ci.yml/badge.svg)](https://github.com/mmaxjr/maxconn/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-Leia em [Português](README.pt-BR.md).
+Read in [English](README.md).
 
-Zero-dependency network automation toolkit for Python: SSH/Telnet clients
-built on raw sockets (no Paramiko/Netmiko/Scrapli), a CLI for day-to-day
-network engineering tasks, and a themeable interactive terminal.
+Biblioteca de automação de redes em Python, sem dependências obrigatórias:
+clientes SSH/Telnet feitos sobre sockets puros (sem Paramiko/Netmiko/Scrapli),
+uma CLI para tarefas do dia a dia de um engenheiro de redes, e um terminal
+interativo com temas.
 
-## Quick Start
+## Começo Rápido
 
 ```bash
 pip install maxconn
@@ -19,7 +20,7 @@ maxconn hosts add olt-01 --host 10.0.0.1 --port 22 --protocol ssh --username adm
 maxconn ssh olt-01 --command "show version"
 ```
 
-Prefer Python? Same idea, three lines:
+Prefere Python puro? A mesma ideia, em três linhas:
 
 ```python
 import maxconn
@@ -28,38 +29,41 @@ with maxconn.connect("192.0.2.10", protocol="ssh", username="admin", password="s
     print(conn.run("display version", prompt_markers=(">", "#")).text)
 ```
 
-## Why MAXCONN
+## Por que MAXCONN
 
-MAXCONN is meant to grow into a practical toolkit for network engineers and
-DevOps engineers who automate network tasks: connecting to devices, running
-commands, reading output, collecting data, validating state, building
-inventory, and later adding vendor-specific modules.
+Projeto criado por Marcos Max para ser uma biblioteca Python voltada a redes e
+infraestrutura.
 
-The project starts with the connection layer. Today MAXCONN has SSH and
-Telnet clients built on top of sockets, without using Paramiko, Netmiko,
-Scrapli, or Telnetlib as runtime clients.
+A ideia do MAXCONN é juntar, aos poucos, as ferramentas que um engenheiro de
+redes ou DevOps usa no dia a dia para automatizar tarefas de rede: conexão em
+equipamentos, execução de comandos, leitura de saída, coleta de dados,
+validação, inventário e, mais adiante, módulos específicos para fornecedores.
 
-Package on PyPI: https://pypi.org/project/maxconn/
+O início do projeto é a camada de conexão. Hoje o MAXCONN já tem cliente SSH e
+Telnet feitos sobre sockets, sem usar Paramiko, Netmiko, Scrapli ou Telnetlib
+como cliente em runtime.
 
-## Installation
+Pacote no PyPI: https://pypi.org/project/maxconn/
 
-Regular install:
+## Instalação
+
+Instalação para uso normal:
 
 ```bash
 pip install maxconn
 ```
 
-For SSH:
+Para usar SSH:
 
 ```bash
 pip install "maxconn[ssh]"
 ```
 
-Telnet does not pull extra runtime dependencies. SSH uses `cryptography`
-through the `ssh` extra. Paramiko is test-only and is used to run a local SSH
-server for integration tests.
+Telnet não puxa dependências extras. SSH usa `cryptography` pelo extra `ssh`.
+Paramiko fica só nos testes, para subir um servidor SSH local e validar o
+cliente do MAXCONN contra uma implementação independente.
 
-Development install:
+Instalação para desenvolvimento:
 
 ```bash
 git clone https://github.com/mmaxjr/maxconn
@@ -69,27 +73,27 @@ pytest -v
 ruff check src tests
 ```
 
-Current development version: `0.1.19`.
+Versão atual em desenvolvimento: `0.1.19`.
 
-## Module Status
+## Status dos módulos
 
-| Area | Status | Interface |
+| Área | Status | Interface |
 |---|---|---|
-| SSH/Telnet | basic usage | Python API and CLI |
-| Ping/scan/traceroute | basic usage | Python API and CLI |
-| MTR | basic live table | Python API and CLI |
-| SNMP v2c GET/WALK | basic usage | Python API and CLI |
-| SFTP | basic file operations | Python API and CLI |
-| HTTP/FTP | small client | Python API |
+| SSH/Telnet | uso básico | API Python e CLI |
+| Ping/scan/traceroute | uso básico | API Python e CLI |
+| MTR | uso básico com tabela ao vivo | API Python e CLI |
+| SNMP v2c GET/WALK | uso básico | API Python e CLI |
+| SFTP | operações de arquivo básicas | API Python e CLI |
+| HTTP/FTP | cliente simples | API Python |
 
-## CLI Reference
+## Referência da CLI
 
-### Connection & saved hosts
+### Conexão e hosts salvos
 
 ```bash
 maxconn ssh 192.0.2.10 --username admin --password secret --command "show version"
 maxconn telnet 192.0.2.20 --username admin --password secret --command "show status"
-maxconn ssh olt-01                                  # interactive session (no --command)
+maxconn ssh olt-01                                  # sessão interativa (sem --command)
 maxconn hosts add olt-01 --host 10.0.0.1 --port 22 --protocol ssh --username admin --profile huawei --tags olt,pop-centro
 maxconn hosts list
 maxconn hosts list --json
@@ -103,20 +107,20 @@ maxconn hosts export --file hosts-backup.json
 maxconn hosts import --file hosts-backup.json
 maxconn hosts recent
 maxconn hosts save-recent 1 --name olt-01 --profile huawei --tags olt
-maxconn start                                       # themeable interactive terminal
+maxconn start                                       # terminal interativo com temas
 ```
 
-### Discovery
+### Descoberta
 
 ```bash
 maxconn discover 192.168.0.0/24
 maxconn discover 192.168.0.0/24 --ports 80,443 --json
 maxconn discover 192.168.0.0/24 --only-open
 maxconn discover 192.168.0.0/24 --save-found --name-prefix sw --tags discovered,lab
-maxconn discover 10.0.0.0/20 --confirm             # required above the host-count threshold
+maxconn discover 10.0.0.0/20 --confirm             # exigido acima do limite de hosts
 ```
 
-### Diagnostics
+### Diagnóstico
 
 ```bash
 maxconn ping 192.0.2.1
@@ -127,7 +131,7 @@ maxconn mtr 8.8.8.8 --count 5 --interval 1
 maxconn snmp get 192.0.2.1 1.3.6.1.2.1.1.5.0 --community public
 maxconn snmp walk 192.0.2.1 1.3.6.1.2.1.1 --community public
 maxconn doctor
-maxconn doctor --network                            # + DNS/gateway/internet/PyPI-version checks
+maxconn doctor --network                            # + checagens de DNS/gateway/internet/versão PyPI
 maxconn history list --limit 20 --since today
 maxconn history show 1
 maxconn history replay 1
@@ -135,7 +139,7 @@ maxconn history clear
 maxconn selftest
 ```
 
-### File transfer (SFTP)
+### Transferência de arquivos (SFTP)
 
 ```bash
 maxconn sftp ls 192.0.2.10 /configs --username admin --password secret
@@ -147,21 +151,20 @@ maxconn sftp rm 192.0.2.10 /remote/old.cfg --username admin --password secret
 maxconn sftp rename 192.0.2.10 /remote/a.cfg /remote/b.cfg --username admin --password secret
 ```
 
-Saved hosts live in `~/.maxconn/hosts.json`. Recently used hosts live in
-`~/.maxconn/seen_hosts.json`, without passwords. To save a password locally,
-use `--save-password` explicitly; it is never printed, and `hosts list`
-only shows a yes/no indicator for whether one is saved.
-Local command history lives in `~/.maxconn/history.jsonl`; commands
-containing words such as password, token, or secret are stored with
-redaction.
+Hosts salvos ficam em `~/.maxconn/hosts.json`. Hosts usados recentemente ficam
+em `~/.maxconn/seen_hosts.json`, sem senha. Para salvar senha localmente, use
+`--save-password` de forma explícita; ela nunca é exibida, e `hosts list`
+mostra apenas um indicador sim/não de que existe senha salva.
+Histórico local fica em `~/.maxconn/history.jsonl`; comandos com palavras como
+senha, token ou secret são gravados com redação.
 
-To enter a device terminal, run `maxconn ssh NAME` or `maxconn telnet NAME`
-without `--command`. Inside the visual shell opened by `maxconn start`, use
-`ssh NAME`, `telnet NAME`, or `open NAME`.
+Para entrar no terminal do equipamento, use `maxconn ssh NOME` ou
+`maxconn telnet NOME` sem `--command`. Dentro do terminal visual aberto por
+`maxconn start`, use `ssh NOME`, `telnet NOME` ou `open NOME`.
 
-## Python API
+## API Python
 
-### Basic Usage
+### Uso Básico
 
 Telnet:
 
@@ -193,12 +196,12 @@ with maxconn.connect(
     print(result.text)
 ```
 
-For lower-level use, `Connection.send()`, `Connection.recv()`,
-`Connection.read_until()`, and `Connection.send_command()` are still available.
+Para uso mais direto, `Connection.send()`, `Connection.recv()`,
+`Connection.read_until()` e `Connection.send_command()` continuam disponíveis.
 
-### Command Result
+### Resultado de Comando
 
-`Connection.run()` returns a result object:
+`Connection.run()` retorna um resultado com campos úteis:
 
 ```python
 result = conn.run("display version", prompt_markers=(">", "#"))
@@ -211,13 +214,13 @@ print(result.exit_status)
 print(result.ok)
 ```
 
-`result.ok` is true when `exit_status` is `None` or `0`. Interactive CLI
-sessions, such as Telnet and shell-style SSH, usually do not provide an exit
-status, so `None` is expected.
+`result.ok` é verdadeiro quando `exit_status` é `None` ou `0`. Em sessões CLI
+interativas, como Telnet e shell SSH, geralmente não existe status de saída,
+então `None` é esperado.
 
 ### Expect
 
-For prompt-based automation, use `ExpectSession` directly:
+Para automação guiada por prompt, use `ExpectSession` diretamente:
 
 ```python
 from maxconn.automation import ExpectSession, PromptProfile
@@ -226,17 +229,17 @@ expect = ExpectSession(conn, prompt_markers=PromptProfile.CISCO)
 output = expect.run("show running-config", timeout=20.0)
 ```
 
-`ExpectSession` handles the common parts of a network device CLI:
+`ExpectSession` faz o básico que uma CLI de equipamento costuma precisar:
 
-- waits for prompts
-- strips command echo
-- answers simple pagination markers such as `--More--`
-- includes partial output in timeout errors
-- answers simple confirmation prompts such as `[Y/N]`
+- espera por prompts
+- remove eco do comando
+- responde paginação simples, como `--More--`
+- inclui a saída parcial quando ocorre timeout
+- responde confirmações simples, como `[Y/N]`
 
-### Sessions and Ping
+### Sessões e Ping
 
-`SessionManager` controls named connections:
+`SessionManager` controla conexões nomeadas:
 
 ```python
 import maxconn
@@ -247,7 +250,7 @@ result = conn.run("display version", prompt_markers=(">", "#"))
 manager.close_all()
 ```
 
-Basic ping:
+Ping básico:
 
 ```python
 import maxconn
@@ -256,7 +259,7 @@ result = maxconn.ping("192.0.2.1")
 print(result.reachable)
 ```
 
-TCP scan:
+Scanner TCP:
 
 ```python
 import maxconn
@@ -265,7 +268,7 @@ for result in maxconn.scan("192.0.2.1", ports=[22, 23, 80, 443]):
     print(result.port, "open" if result.open else "closed")
 ```
 
-Subnet discovery:
+Discover de bloco:
 
 ```python
 import maxconn
@@ -275,13 +278,13 @@ for host in maxconn.discover("192.168.0.0/24"):
         print(host.host, host.open_ports, host.banner)
 ```
 
-In the terminal, `maxconn discover NETWORK/CIDR` tests common TCP ports across
-the subnet. The default ports include at least `80` and `443`, plus common
-network ports such as SSH, Telnet, SNMP, MikroTik, and alternate HTTP/HTTPS.
-Use `--ports` to limit or change the list. Networks above the host-count
-threshold require `--confirm` (or `confirm=True` in Python).
+No terminal, `maxconn discover REDE/CIDR` testa portas TCP comuns em todos os
+hosts do bloco. As portas padrão incluem pelo menos `80` e `443`, junto com
+portas comuns de rede como SSH, Telnet, SNMP, MikroTik e HTTP/HTTPS alternativo.
+Use `--ports` para limitar ou alterar a lista. Redes acima do limite de hosts
+exigem `--confirm` (ou `confirm=True` em Python).
 
-Traceroute and mini MTR:
+Traceroute e mini MTR:
 
 ```python
 import maxconn
@@ -294,19 +297,19 @@ report = maxconn.mtr("8.8.8.8", count=5)
 print(report.loss_percent, report.avg)
 ```
 
-In the terminal, `maxconn mtr HOST` runs continuously and refreshes a table per
-hop. Stop it with `Ctrl+C`. For a bounded run, pass `--count`. Hops that do not
-answer are shown as `No response from host`, so the path is not hidden and the
-internal `*` marker does not leak into the table.
-By default the route is discovered once and known hops are measured every round,
-which makes refreshes closer to WinMTR. On networks with many silent hops,
-increase `--trace-timeout`. To refresh the route periodically, use
-`--rediscover-every N`.
-For automation and reports, use `--json`, `--output json`, `--export path.txt`, and `--no-clear`.
+No terminal, `maxconn mtr HOST` roda continuamente e atualiza uma tabela por
+hop. Use `Ctrl+C` para parar. Para uma execução limitada, informe `--count`.
+Saltos que não respondem aparecem como `No response from host`, para preservar
+o caminho sem misturar o marcador interno `*` na tabela.
+Por padrão a rota é descoberta uma vez e os hops conhecidos são medidos a cada
+rodada, o que deixa a atualização mais parecida com WinMTR. Em redes com muitos
+saltos silenciosos, aumente `--trace-timeout`. Para redescobrir a rota de tempos
+em tempos, use `--rediscover-every N`.
+Para automação e relatórios, use `--json`, `--output json`, `--export caminho.txt` e `--no-clear`.
 
-### Examples
+### Exemplos
 
-The `examples/` folder has small scripts that can be used as starting points:
+A pasta `examples/` tem scripts pequenos para servir como ponto de partida:
 
 - `ssh_run_command.py`
 - `sftp_backup.py`
@@ -314,15 +317,15 @@ The `examples/` folder has small scripts that can be used as starting points:
 - `snmp_walk.py`
 - `scan_ports.py`
 
-Before publishing a version, run:
+Antes de publicar uma versão, rode:
 
 ```bash
 python scripts/release_check.py
 ```
 
-### HTTP and FTP
+### HTTP e FTP
 
-Basic HTTP/HTTPS:
+HTTP/HTTPS básico:
 
 ```python
 from maxconn.protocol.http import HTTPClient
@@ -332,7 +335,7 @@ print(response.status_code)
 print(response.text)
 ```
 
-Basic FTP:
+FTP básico:
 
 ```python
 from maxconn.protocol.ftp import FTPClient
@@ -346,7 +349,7 @@ with FTPClient.connect(
     data = ftp.download("backup.cfg")
 ```
 
-Initial SFTP:
+SFTP inicial:
 
 ```python
 import maxconn
@@ -368,7 +371,7 @@ finally:
     sftp.close()
 ```
 
-Basic SNMP v2c:
+SNMP v2c básico:
 
 ```python
 from maxconn.protocol.snmp import SNMPClient
@@ -383,7 +386,7 @@ for item in snmp.walk("1.3.6.1.2.1.1"):
 
 ### Timeouts
 
-`connect()` accepts separate timeouts:
+`connect()` aceita timeouts separados:
 
 ```python
 conn = maxconn.connect(
@@ -398,12 +401,12 @@ conn = maxconn.connect(
 )
 ```
 
-The older `timeout=` argument still works. When `connect_timeout` or
-`auth_timeout` is not provided, `timeout=` is used as the default.
+O argumento antigo `timeout=` continua funcionando. Quando `connect_timeout` ou
+`auth_timeout` não são informados, `timeout=` é usado como padrão.
 
 ### Logging
 
-Command execution writes audit events through the `maxconn.audit` logger:
+A execução de comandos registra eventos pelo logger `maxconn.audit`:
 
 ```python
 import logging
@@ -411,12 +414,12 @@ import logging
 logging.basicConfig(level=logging.INFO)
 ```
 
-Command fragments with words such as `password`, `secret`, `token`, or `key`
-are redacted before logging.
+Trechos sensíveis com palavras como `password`, `secret`, `token` ou `key` são
+redigidos antes de ir para o log.
 
-### Errors
+### Erros
 
-Use the project exception hierarchy:
+Use a hierarquia de exceções do projeto:
 
 ```python
 import maxconn
@@ -439,11 +442,11 @@ except maxconn.MaxConnError as exc:
     print(f"maxconn error: {exc}")
 ```
 
-## Project Direction
+## Direção do Projeto
 
-- Do not turn the project into a wrapper around Paramiko, Netmiko, Scrapli, or Telnetlib.
-- Keep optional dependencies behind extras.
-- Keep raw bytes available for code that needs them.
-- Keep the common API simple.
-- Test against local Telnet and SSH servers when it makes sense.
-- Publish new versions to PyPI by tag, using GitHub Actions and Trusted Publishing.
+- Não transformar o projeto em wrapper de Paramiko, Netmiko, Scrapli ou Telnetlib.
+- Manter dependências opcionais atrás de extras.
+- Deixar bytes crus disponíveis para quem precisa.
+- Dar uma API simples para o caso comum.
+- Testar com servidores locais de Telnet e SSH sempre que fizer sentido.
+- Publicar novas versões no PyPI por tag, usando GitHub Actions e Trusted Publishing.
