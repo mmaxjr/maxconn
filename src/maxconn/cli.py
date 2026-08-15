@@ -14,9 +14,11 @@ from pathlib import Path
 from typing import Any
 
 import maxconn
+from maxconn import doctor
 from maxconn.exceptions import MaxConnError
 from maxconn.history import HistoryStore, format_history_csv, format_history_table, parse_since
 from maxconn.hosts import (
+    DEFAULT_BASE_DIR,
     HostEntry,
     HostStore,
     format_hosts_table,
@@ -341,7 +343,8 @@ def main(argv: list[str] | None = None) -> int:
     history_replay.add_argument("--timeout", type=float, default=10.0)
     history_subcommands.add_parser("clear", help="clear command history")
 
-    subparsers.add_parser("doctor", help="print local environment diagnostics")
+    doctor_command = subparsers.add_parser("doctor", help="print local environment diagnostics")
+    doctor_command.add_argument("--network", action="store_true", help="also run DNS/gateway/internet checks")
     subparsers.add_parser("selftest", help="run quick local CLI checks")
     subparsers.add_parser("start", help="launch the interactive maxconn shell")
 
@@ -714,7 +717,22 @@ def main(argv: list[str] | None = None) -> int:
                 print("ssh_extra=not installed")
             else:
                 print("ssh_extra=installed")
-            return 0
+            print(f"maxconn_dir_writable={'yes' if doctor.check_dir_writable(DEFAULT_BASE_DIR) else 'no'}")
+            terminal = doctor.check_terminal()
+            print(f"terminal_tty={'yes' if terminal['isatty'] else 'no'}")
+            print(f"terminal_color={'yes' if terminal['color'] else 'no'}")
+            if not args.network:
+                return 0
+            dns_ok = doctor.check_dns()
+            print(f"dns={'ok' if dns_ok else 'fail'}")
+            internet_ok = doctor.check_internet()
+            print(f"internet={'ok' if internet_ok else 'fail'}")
+            gateway = doctor.default_gateway()
+            print(f"gateway={gateway or 'unknown'}")
+            latest = doctor.fetch_latest_pypi_version()
+            print(f"pypi_latest={latest or 'unknown'}")
+            print(f"version_status={doctor.compare_versions(maxconn.__version__, latest)}")
+            return 0 if dns_ok and internet_ok else 1
 
         if args.protocol == "selftest":
             json.loads(json.dumps({"ok": True}))

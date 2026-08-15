@@ -1232,6 +1232,51 @@ def test_cli_doctor_prints_environment(capsys):
     assert "ping=" in output
 
 
+def test_cli_doctor_prints_local_checks_without_network_flag(capsys):
+    exit_code = maxconn.cli.main(["doctor"])
+
+    assert exit_code == 0
+    output = capsys.readouterr().out
+    assert "maxconn_dir_writable=" in output
+    assert "terminal_tty=" in output
+    assert "terminal_color=" in output
+    assert "dns=" not in output
+    assert "internet=" not in output
+    assert "pypi_latest=" not in output
+
+
+def test_cli_doctor_network_runs_dns_internet_and_version_checks(monkeypatch, capsys):
+    monkeypatch.setattr(maxconn.cli.doctor, "check_dns", lambda *a, **k: True)
+    monkeypatch.setattr(maxconn.cli.doctor, "check_internet", lambda *a, **k: False)
+    monkeypatch.setattr(maxconn.cli.doctor, "default_gateway", lambda *a, **k: "192.168.1.1")
+    monkeypatch.setattr(maxconn.cli.doctor, "fetch_latest_pypi_version", lambda *a, **k: "99.0.0")
+
+    exit_code = maxconn.cli.main(["doctor", "--network"])
+
+    output = capsys.readouterr().out
+    assert exit_code == 1  # internet check failed
+    assert "dns=ok" in output
+    assert "internet=fail" in output
+    assert "gateway=192.168.1.1" in output
+    assert "pypi_latest=99.0.0" in output
+    assert "version_status=update-available" in output
+
+
+def test_cli_doctor_network_handles_unknown_pypi_version(monkeypatch, capsys):
+    monkeypatch.setattr(maxconn.cli.doctor, "check_dns", lambda *a, **k: True)
+    monkeypatch.setattr(maxconn.cli.doctor, "check_internet", lambda *a, **k: True)
+    monkeypatch.setattr(maxconn.cli.doctor, "default_gateway", lambda *a, **k: None)
+    monkeypatch.setattr(maxconn.cli.doctor, "fetch_latest_pypi_version", lambda *a, **k: None)
+
+    exit_code = maxconn.cli.main(["doctor", "--network"])
+
+    output = capsys.readouterr().out
+    assert exit_code == 0
+    assert "gateway=unknown" in output
+    assert "pypi_latest=unknown" in output
+    assert "version_status=unknown" in output
+
+
 def test_cli_selftest_prints_basic_checks(capsys):
     exit_code = maxconn.cli.main(["selftest"])
 
