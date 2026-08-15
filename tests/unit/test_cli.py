@@ -1102,6 +1102,125 @@ def test_cli_hosts_test_scans_saved_host_port(monkeypatch, tmp_path, capsys):
     assert "open" in output
 
 
+def test_cli_hosts_test_all_tests_every_saved_host(monkeypatch, tmp_path, capsys):
+    store = HostStore(base_dir=tmp_path)
+    store.add(HostEntry(name="olt-01", host="10.0.0.1", port=22, protocol="ssh"))
+    store.add(HostEntry(name="olt-02", host="10.0.0.2", port=22, protocol="ssh"))
+    monkeypatch.setattr(maxconn.cli, "_host_store", lambda: store)
+    monkeypatch.setattr(
+        maxconn.cli.maxconn,
+        "scan",
+        lambda host, *, ports, timeout, concurrency: [
+            type("Result", (), {"open": True, "port": ports[0], "elapsed": 0.01})()
+        ],
+    )
+
+    assert maxconn.cli.main(["hosts", "test", "--all"]) == 0
+
+    output = capsys.readouterr().out
+    assert "olt-01" in output
+    assert "olt-02" in output
+
+
+def test_cli_hosts_test_tag_filters_by_tag(monkeypatch, tmp_path, capsys):
+    store = HostStore(base_dir=tmp_path)
+    store.add(HostEntry(name="olt-01", host="10.0.0.1", port=22, protocol="ssh", tags=["core"]))
+    store.add(HostEntry(name="olt-02", host="10.0.0.2", port=22, protocol="ssh", tags=["edge"]))
+    monkeypatch.setattr(maxconn.cli, "_host_store", lambda: store)
+    monkeypatch.setattr(
+        maxconn.cli.maxconn,
+        "scan",
+        lambda host, *, ports, timeout, concurrency: [
+            type("Result", (), {"open": True, "port": ports[0], "elapsed": 0.01})()
+        ],
+    )
+
+    assert maxconn.cli.main(["hosts", "test", "--tag", "core"]) == 0
+
+    output = capsys.readouterr().out
+    assert "olt-01" in output
+    assert "olt-02" not in output
+
+
+def test_cli_hosts_test_all_returns_nonzero_when_any_host_is_closed(monkeypatch, tmp_path, capsys):
+    store = HostStore(base_dir=tmp_path)
+    store.add(HostEntry(name="olt-01", host="10.0.0.1", port=22, protocol="ssh"))
+    monkeypatch.setattr(maxconn.cli, "_host_store", lambda: store)
+    monkeypatch.setattr(
+        maxconn.cli.maxconn,
+        "scan",
+        lambda host, *, ports, timeout, concurrency: [
+            type("Result", (), {"open": False, "port": ports[0], "elapsed": 0.01})()
+        ],
+    )
+
+    assert maxconn.cli.main(["hosts", "test", "--all"]) == 1
+
+
+def test_cli_hosts_edit_updates_only_given_fields(monkeypatch, tmp_path, capsys):
+    store = HostStore(base_dir=tmp_path)
+    store.add(
+        HostEntry(name="olt-01", host="10.0.0.1", port=22, protocol="ssh", username="admin", profile="huawei")
+    )
+    monkeypatch.setattr(maxconn.cli, "_host_store", lambda: store)
+
+    assert maxconn.cli.main(["hosts", "edit", "olt-01", "--host", "10.0.0.2"]) == 0
+
+    updated = store.get("olt-01")
+    assert updated.host == "10.0.0.2"
+    assert updated.username == "admin"
+    assert updated.profile == "huawei"
+
+
+def test_cli_hosts_set_is_an_alias_for_edit(monkeypatch, tmp_path, capsys):
+    store = HostStore(base_dir=tmp_path)
+    store.add(HostEntry(name="olt-01", host="10.0.0.1", port=22, protocol="ssh"))
+    monkeypatch.setattr(maxconn.cli, "_host_store", lambda: store)
+
+    assert maxconn.cli.main(["hosts", "set", "olt-01", "--tags", "core,pop"]) == 0
+
+    assert store.get("olt-01").tags == ["core", "pop"]
+
+
+def test_cli_hosts_edit_missing_name_prints_clean_error(monkeypatch, tmp_path, capsys):
+    store = HostStore(base_dir=tmp_path)
+    monkeypatch.setattr(maxconn.cli, "_host_store", lambda: store)
+
+    assert maxconn.cli.main(["hosts", "edit", "does-not-exist", "--host", "10.0.0.9"]) == 1
+    assert "does-not-exist" in capsys.readouterr().err
+
+
+def test_cli_hosts_export_and_import_round_trip(monkeypatch, tmp_path, capsys):
+    store = HostStore(base_dir=tmp_path / "store-a")
+    store.add(HostEntry(name="olt-01", host="10.0.0.1", port=22, protocol="ssh", tags=["core"]))
+    monkeypatch.setattr(maxconn.cli, "_host_store", lambda: store)
+
+    export_path = tmp_path / "hosts-export.json"
+    assert maxconn.cli.main(["hosts", "export", "--file", str(export_path)]) == 0
+    assert export_path.exists()
+
+    other_store = HostStore(base_dir=tmp_path / "store-b")
+    monkeypatch.setattr(maxconn.cli, "_host_store", lambda: other_store)
+
+    assert maxconn.cli.main(["hosts", "import", "--file", str(export_path)]) == 0
+    assert other_store.get("olt-01").host == "10.0.0.1"
+    assert other_store.get("olt-01").tags == ["core"]
+
+
+def test_cli_hosts_list_json_includes_has_password_but_not_the_value(monkeypatch, tmp_path, capsys):
+    store = HostStore(base_dir=tmp_path)
+    store.add(HostEntry(name="bgp-view", host="10.0.0.1", port=22, protocol="ssh", password="topsecret"))
+    monkeypatch.setattr(maxconn.cli, "_host_store", lambda: store)
+
+    assert maxconn.cli.main(["hosts", "list", "--json"]) == 0
+
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["hosts"][0]["name"] == "bgp-view"
+    assert payload["hosts"][0]["has_password"] is True
+    assert "password" not in payload["hosts"][0]
+    assert "topsecret" not in capsys.readouterr().out
+
+
 def test_cli_doctor_prints_environment(capsys):
     exit_code = maxconn.cli.main(["doctor"])
 

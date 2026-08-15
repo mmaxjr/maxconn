@@ -165,3 +165,45 @@ def test_hosts_saved_password_is_explicit_and_hidden_from_table(tmp_path):
 
     assert "secret" not in table
     assert store.get("olt-01").password == "secret"
+
+
+def test_hosts_table_indicates_saved_password_without_exposing_it():
+    with_password = HostEntry(
+        name="bgp-view", host="10.0.0.1", port=22, protocol="ssh", password="topsecret"
+    )
+    without_password = HostEntry(name="olt-01", host="10.0.0.2", port=22, protocol="ssh")
+
+    table = format_hosts_table([with_password, without_password])
+
+    assert "PASSWORD" in table
+    assert "topsecret" not in table
+    lines = {line.split()[0]: line for line in table.splitlines()}
+    assert "yes" in lines["bgp-view"]
+    assert "no" in lines["olt-01"]
+
+
+def test_host_store_update_changes_only_the_given_fields(tmp_path):
+    store = HostStore(base_dir=tmp_path)
+    store.add(
+        HostEntry(
+            name="olt-01",
+            host="10.0.0.1",
+            port=22,
+            protocol="ssh",
+            username="admin",
+            profile="huawei",
+            tags=["olt"],
+            notes="core pop",
+        )
+    )
+
+    updated = store.update("olt-01", host="10.0.0.2", tags=["olt", "backbone"])
+
+    assert updated.host == "10.0.0.2"
+    assert updated.tags == ["olt", "backbone"]
+    # untouched fields keep their previous value
+    assert updated.port == 22
+    assert updated.username == "admin"
+    assert updated.profile == "huawei"
+    assert updated.notes == "core pop"
+    assert store.get("olt-01") == updated
