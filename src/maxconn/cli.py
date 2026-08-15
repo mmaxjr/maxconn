@@ -161,6 +161,7 @@ def _discover_payload(network: str, results: list[Any]) -> dict[str, Any]:
                 "reachable": result.reachable,
                 "open_ports": result.open_ports,
                 "scanned_ports": result.scanned_ports,
+                "banner": result.banner,
             }
             for result in results
         ],
@@ -284,6 +285,13 @@ def main(argv: list[str] | None = None) -> int:
     discover_command.add_argument("--export", help="write the rendered output to a file")
     discover_command.add_argument("--only-open", action="store_true", help="show only hosts with open ports")
     discover_command.add_argument("--save-found", action="store_true", help="save discovered open hosts locally")
+    discover_command.add_argument(
+        "--name-prefix", default="discovered", help="prefix used when naming saved hosts (with --save-found)"
+    )
+    discover_command.add_argument("--tags", help="comma-separated tags for saved hosts (with --save-found)")
+    discover_command.add_argument(
+        "--confirm", action="store_true", help="allow scanning networks above the confirmation threshold"
+    )
 
     history_command = subparsers.add_parser("history", help="manage local command history")
     history_subcommands = history_command.add_subparsers(dest="history_action", required=True)
@@ -567,35 +575,38 @@ def main(argv: list[str] | None = None) -> int:
                 timeout=args.timeout,
                 concurrency=args.concurrency,
                 workers=args.workers,
+                confirm=args.confirm,
             )
             if args.only_open:
                 results = [result for result in results if result.reachable]
             if args.save_found:
                 store = _host_store()
+                tags = parse_tags(args.tags) or ["discovered"]
                 for result in results:
                     if not result.reachable:
                         continue
                     port = result.open_ports[0]
                     store.add(
                         HostEntry(
-                            name=f"host-{result.host.replace('.', '-')}-{port}",
+                            name=f"{args.name_prefix}-{result.host}",
                             host=result.host,
                             port=port,
                             protocol=_protocol_for_port(port),
                             username=None,
                             profile=None,
-                            tags=["discovered"],
+                            tags=tags,
                             notes=f"discovered from {args.network}",
                         )
                     )
             if _is_json_output(args):
                 _json_output(_discover_payload(args.network, results), args.export)
                 return 0 if any(result.reachable for result in results) else 1
-            lines = ["HOST           STATUS      OPEN_PORTS"]
+            lines = ["HOST           STATUS      OPEN_PORTS       BANNER"]
             for result in results:
                 status = "open" if result.reachable else "closed"
                 open_ports = ",".join(str(port) for port in result.open_ports) or "-"
-                lines.append(f"{result.host:<14} {status:<11} {open_ports}")
+                banner = result.banner or ""
+                lines.append(f"{result.host:<14} {status:<11} {open_ports:<16} {banner}")
             _write_output("\n".join(lines), args.export)
             return 0 if any(result.reachable for result in results) else 1
 

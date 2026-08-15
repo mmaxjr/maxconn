@@ -9,7 +9,7 @@ from maxconn.net.discover import DiscoverHost
 def test_cli_discover_uses_default_ports_and_prints_table(monkeypatch, capsys):
     calls = []
 
-    def fake_discover(network, *, ports, timeout, concurrency, workers):
+    def fake_discover(network, *, ports, timeout, concurrency, workers, confirm=False):
         calls.append((network, ports, timeout, concurrency, workers))
         return [DiscoverHost(host="192.0.2.10", open_ports=[80, 443], scanned_ports=ports)]
 
@@ -79,3 +79,48 @@ def test_cli_discover_save_found_records_open_hosts(monkeypatch, tmp_path, capsy
     assert saved[0].host == "192.0.2.10"
     assert saved[0].port == 22
     assert saved[0].protocol == "ssh"
+    assert saved[0].name == "discovered-192.0.2.10"
+    assert saved[0].tags == ["discovered"]
+
+
+def test_cli_discover_save_found_honors_name_prefix_and_tags(monkeypatch, tmp_path, capsys):
+    store = maxconn.cli.HostStore(base_dir=tmp_path)
+    monkeypatch.setattr(maxconn.cli, "_host_store", lambda: store)
+    monkeypatch.setattr(
+        maxconn.cli.maxconn,
+        "discover",
+        lambda *args, **kwargs: [DiscoverHost(host="192.0.2.10", open_ports=[22], scanned_ports=[22])],
+    )
+
+    assert (
+        maxconn.cli.main(
+            [
+                "discover",
+                "192.0.2.0/24",
+                "--save-found",
+                "--name-prefix",
+                "sw",
+                "--tags",
+                "discovered,lab",
+            ]
+        )
+        == 0
+    )
+
+    capsys.readouterr()
+    saved = store.list()
+    assert saved[0].name == "sw-192.0.2.10"
+    assert saved[0].tags == ["discovered", "lab"]
+
+
+def test_cli_discover_passes_confirm_flag_through(monkeypatch, capsys):
+    calls = []
+
+    def fake_discover(network, *, ports, timeout, concurrency, workers, confirm=False):
+        calls.append(confirm)
+        return [DiscoverHost(host="192.0.2.10", open_ports=[80], scanned_ports=[80])]
+
+    monkeypatch.setattr(maxconn.cli.maxconn, "discover", fake_discover)
+
+    assert maxconn.cli.main(["discover", "192.0.2.0/16", "--confirm"]) == 0
+    assert calls == [True]
