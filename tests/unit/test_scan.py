@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import socket
 import threading
+import time
 
 from maxconn.net import scan
 
@@ -40,6 +41,28 @@ def test_scan_reports_open_and_closed_tcp_ports():
     assert by_port[closed_port].open is False
     assert by_port[open_port].host == "127.0.0.1"
     assert by_port[open_port].elapsed >= 0
+
+
+def test_scan_bounds_a_hung_dns_lookup_by_the_timeout(monkeypatch):
+    # Regression: socket.create_connection's own timeout only covers the
+    # TCP connect step, not the internal getaddrinfo() call it makes for a
+    # hostname - a hung/slow resolver could block far longer than the
+    # caller's timeout. Simulate a resolver that takes much longer than
+    # the requested timeout and confirm scan() still returns promptly.
+    real_getaddrinfo = socket.getaddrinfo
+
+    def hung_getaddrinfo(*args, **kwargs):
+        time.sleep(2.0)
+        return real_getaddrinfo("127.0.0.1", None)
+
+    monkeypatch.setattr(socket, "getaddrinfo", hung_getaddrinfo)
+
+    started = time.monotonic()
+    results = scan("some.slow.hostname.example", ports=[80], timeout=0.2, concurrency=1)
+    elapsed = time.monotonic() - started
+
+    assert elapsed < 1.0  # bounded by the timeout, not the 2s hung resolver
+    assert results[0].open is False
 
 
 def test_scan_rejects_invalid_ports():

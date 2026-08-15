@@ -1,9 +1,14 @@
+import pytest
+
+from maxconn.exceptions import ProtocolError
 from maxconn.transport.telnet.negotiation import (
     DO,
     DONT,
     IAC,
+    MAX_SUBNEGOTIATION_SIZE,
     OPT_ECHO,
     OPT_SUPPRESS_GO_AHEAD,
+    SB,
     WILL,
     WONT,
     TelnetNegotiator,
@@ -75,6 +80,17 @@ def test_subnegotiation_block_is_stripped():
     plain, response = neg.feed(data)
     assert plain == b"beforeafter"
     assert response == b""
+
+
+def test_unterminated_subnegotiation_raises_instead_of_buffering_forever():
+    # Regression: a subnegotiation block that never sees IAC SE used to
+    # stay buffered across every feed() call indefinitely, growing without
+    # bound - a buggy or hostile peer could exhaust memory this way.
+    neg = TelnetNegotiator()
+    neg.feed(bytes([IAC, SB, 24, 0]))  # start a subnegotiation, no closing IAC SE
+
+    with pytest.raises(ProtocolError):
+        neg.feed(b"x" * (MAX_SUBNEGOTIATION_SIZE + 1))
 
 
 def test_partial_sequence_is_buffered_across_feed_calls():

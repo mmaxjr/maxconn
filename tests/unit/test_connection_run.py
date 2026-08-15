@@ -20,6 +20,7 @@ class FakeTransport:
         self.sent.append(data)
 
     def recv(self, timeout=None):
+        self.last_recv_timeout = timeout
         return self._chunks.pop(0)
 
     def close(self):
@@ -107,6 +108,22 @@ def test_connection_run_logs_command_without_secrets(caplog):
     assert any("command completed" in message for message in messages)
     assert any("configure password <redacted>" in message for message in messages)
     assert all("supersecret" not in message for message in messages)
+
+
+def test_connection_recv_does_not_default_to_blocking_forever():
+    # Regression: Connection.recv()/Transport.recv() defaulted to
+    # timeout=None, which Python's socket API treats as "block forever,"
+    # not "use a sensible default." Connection.recv()/.send() are
+    # documented as public low-level escape hatches, so calling recv()
+    # with no arguments against a device that stops responding used to
+    # hang the calling thread with no way to recover.
+    transport = FakeTransport([b"data"])
+    conn = Connection(transport, host="192.0.2.10", protocol="telnet")
+
+    conn.recv()
+
+    assert transport.last_recv_timeout is not None
+    assert transport.last_recv_timeout > 0
 
 
 def test_connection_run_redacts_equals_sign_flag_form(caplog):
