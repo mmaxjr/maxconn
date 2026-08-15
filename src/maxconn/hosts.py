@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -65,6 +65,16 @@ class HostStore:
             if entry.name == name:
                 return entry
         raise KeyError(f"host not found: {name}")
+
+    def update(self, name: str, **changes: Any) -> HostEntry:
+        with locked(self.hosts_path):
+            hosts = {host.name: host for host in self.list()}
+            if name not in hosts:
+                raise KeyError(f"host not found: {name}")
+            updated = replace(hosts[name], **{key: value for key, value in changes.items() if value is not None})
+            hosts[name] = updated
+            self._write_hosts(list(hosts.values()))
+            return updated
 
     def remove(self, name: str) -> None:
         with locked(self.hosts_path):
@@ -202,10 +212,11 @@ def format_hosts_table(entries: list[HostEntry]) -> str:
             entry.username or "",
             entry.profile or "",
             ",".join(entry.tags or []),
+            "yes" if entry.password else "no",
         ]
         for entry in entries
     ]
-    return _format_table(["NAME", "HOST/IP", "PORT", "PROTOCOL", "USER", "PROFILE", "TAGS"], rows)
+    return _format_table(["NAME", "HOST/IP", "PORT", "PROTOCOL", "USER", "PROFILE", "TAGS", "PASSWORD"], rows)
 
 
 def format_seen_hosts_table(entries: list[SeenHostEntry]) -> str:
