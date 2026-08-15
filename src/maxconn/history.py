@@ -1,14 +1,46 @@
 from __future__ import annotations
 
+import csv
+import io
 import json
+import re
 from dataclasses import asdict, dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
 from maxconn._file_lock import locked
 from maxconn._redact import redact as _redact
 from maxconn.hosts import DEFAULT_BASE_DIR
+
+_RELATIVE_SINCE_PATTERN = re.compile(r"^(\d+)([hd])$")
+
+
+def parse_since(value: str, *, now: datetime | None = None) -> datetime:
+    """Parse a ``--since`` value into a UTC datetime.
+
+    Accepts ``today``, ``yesterday``, a relative offset like ``24h``/``7d``,
+    or an ISO date/datetime (interpreted as UTC if it carries no timezone,
+    matching how HistoryEntry.timestamp itself is always stored in UTC).
+    """
+    reference = now if now is not None else datetime.now(timezone.utc)
+    normalized = value.strip().lower()
+    if normalized == "today":
+        return reference.replace(hour=0, minute=0, second=0, microsecond=0)
+    if normalized == "yesterday":
+        return reference.replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(days=1)
+    match = _RELATIVE_SINCE_PATTERN.match(normalized)
+    if match:
+        amount, unit = int(match.group(1)), match.group(2)
+        delta = timedelta(hours=amount) if unit == "h" else timedelta(days=amount)
+        return reference - delta
+    try:
+        parsed = datetime.fromisoformat(value)
+    except ValueError as exc:
+        raise ValueError(f"could not parse --since value: {value!r}") from exc
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed
 
 
 @dataclass(frozen=True)
@@ -108,6 +140,27 @@ def format_history_table(entries: list[HistoryEntry]) -> str:
         for entry in entries
     ]
     return _format_table(["ID", "TIME", "ALIAS", "HOST/IP", "PORT", "PROTOCOL", "USER", "STATUS", "COMMAND"], rows)
+
+
+def format_history_csv(entries: list[HistoryEntry]) -> str:
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["id", "timestamp", "alias", "host", "port", "protocol", "username", "status", "command"])
+    for entry in entries:
+        writer.writerow(
+            [
+                entry.id,
+                entry.timestamp,
+                entry.alias or "",
+                entry.host,
+                "" if entry.port is None else entry.port,
+                entry.protocol,
+                entry.username or "",
+                "ok" if entry.ok else "fail",
+                "" if entry.command is None else entry.command,
+            ]
+        )
+    return output.getvalue()
 
 
 def _entry_from_dict(data: dict[str, Any]) -> HistoryEntry:
