@@ -4,6 +4,8 @@ import socket
 from dataclasses import dataclass
 from typing import Any
 
+from maxconn.exceptions import ProtocolError
+
 GET_REQUEST = 0xA0
 GET_NEXT_REQUEST = 0xA1
 GET_RESPONSE = 0xA2
@@ -59,13 +61,16 @@ class SNMPClient:
             request_id=request_id,
             oid=oid,
         )
+        resolved_host = socket.gethostbyname(self.host)
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         try:
             sock.settimeout(self.timeout)
-            sock.sendto(packet, (self.host, self.port))
-            response, _addr = sock.recvfrom(65535)
+            sock.sendto(packet, (resolved_host, self.port))
+            response, addr = sock.recvfrom(65535)
         finally:
             sock.close()
+        if addr[0] != resolved_host:
+            raise ProtocolError(f"SNMP response from unexpected source {addr[0]!r} (expected {resolved_host!r})")
         return _parse_response(response)
 
 
@@ -186,6 +191,8 @@ class _Reader:
     def read_any(self) -> tuple[int, bytes]:
         value_type = self._read_byte()
         size = self._read_length()
+        if self.pos + size > len(self.data):
+            raise ValueError("truncated SNMP response")
         value = self.data[self.pos : self.pos + size]
         self.pos += size
         return value_type, value
@@ -200,6 +207,8 @@ class _Reader:
         return _Reader(self.read_tlv(expected))
 
     def _read_byte(self) -> int:
+        if self.pos >= len(self.data):
+            raise ValueError("truncated SNMP response")
         value = self.data[self.pos]
         self.pos += 1
         return value
@@ -209,6 +218,8 @@ class _Reader:
         if first < 128:
             return first
         count = first & 0x7F
+        if self.pos + count > len(self.data):
+            raise ValueError("truncated SNMP response")
         raw = self.data[self.pos : self.pos + count]
         self.pos += count
         return int.from_bytes(raw, "big")

@@ -1,25 +1,14 @@
 from __future__ import annotations
 
 import json
-import re
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 from maxconn._file_lock import locked
+from maxconn._redact import redact as _redact
 from maxconn.hosts import DEFAULT_BASE_DIR
-
-_SECRET_PATTERNS = (
-    re.compile(r"(?i)\b(password|passwd|secret|token|key)\s+\S+"),
-    # Matches both space-separated ("--password X") and equals-sign
-    # ("--password=X") flag forms - argparse accepts both, so redaction
-    # must too.
-    re.compile(r"(?i)(--password|--passwd|--secret|--token|--key)(?:=|\s+)\S+"),
-)
-# scheme://user:PASSWORD@host - only the credential between ":" and "@" is
-# redacted, so the username/host stay visible for context.
-_URL_CREDENTIAL_PATTERN = re.compile(r"([a-zA-Z][\w+.-]*://[^\s:/@]+:)([^\s@]+)(@)")
 
 
 @dataclass(frozen=True)
@@ -136,16 +125,6 @@ def _entry_from_dict(data: dict[str, Any]) -> HistoryEntry:
         duration=float(data["duration"]),
         origin=str(data["origin"]),
     )
-
-
-def _redact(value: str | None) -> str | None:
-    if value is None:
-        return None
-    redacted = value
-    for pattern in _SECRET_PATTERNS:
-        redacted = pattern.sub(lambda match: f"{match.group(1)} <redacted>", redacted)
-    redacted = _URL_CREDENTIAL_PATTERN.sub(lambda match: f"{match.group(1)}<redacted>{match.group(3)}", redacted)
-    return redacted
 
 
 def _format_table(headers: list[str], rows: list[list[str]]) -> str:

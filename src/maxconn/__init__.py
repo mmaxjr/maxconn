@@ -88,7 +88,11 @@ def connect(
     resolved_connect_timeout = connect_timeout if connect_timeout is not None else timeout
     resolved_auth_timeout = auth_timeout if auth_timeout is not None else timeout
     transport.connect(host, resolved_port, resolved_connect_timeout)
-    transport.authenticate(username, password=password, pkey=pkey, timeout=resolved_auth_timeout)
+    try:
+        transport.authenticate(username, password=password, pkey=pkey, timeout=resolved_auth_timeout)
+    except Exception:
+        transport.close()
+        raise
     return Connection(
         transport,
         host=host,
