@@ -1,5 +1,42 @@
 # Changelog
 
+## 0.2.0 - 2026-08-16
+
+- Fix SSH session-key derivation for the `diffie-hellman-group14-sha1`/`hmac-sha1`
+  compatibility fallback, which previously could never complete a handshake.
+- Fix a discarded server-to-client MAC negotiation result and add DH public-value
+  range validation (forward-secrecy hardening).
+- Enforce the negotiated SSH host-key algorithm and raise `ProtocolError` instead
+  of a raw exception on malformed EC points; add an SSH packet-length upper bound.
+- Fix SNMP UDP responses being accepted from any source address (spoofing risk);
+  responses are now validated against the resolved target host.
+- Fix resource leaks: `SessionManager.close_all()`/`add()`, `maxconn.connect()`,
+  and `FTPClient.connect()` could leak sockets on error or overwrite.
+- Consolidate duplicated secret-redaction logic into `maxconn._redact`.
+- Add file locking against concurrent `hosts.json`/`history.jsonl` writes.
+- Unify the theme config directory under `~/.maxconn`.
+- `Connection.recv()` / `Transport.recv()` now default to a 30s timeout instead
+  of blocking forever.
+- `net.scan()` now bounds DNS resolution by the caller's `timeout`.
+- Telnet IAC subnegotiation now has a buffer size cap, raising `ProtocolError`
+  instead of growing unbounded.
+- Add `history list --limit`, `--since`, `--json`, `--output csv`, `--export`.
+- Add `history replay ID` to re-run a saved or recent command.
+- Add `discover` banner fingerprinting on the first open port per host.
+- Add `discover --confirm` guard for networks above a host-count threshold.
+- Add `discover --save-found --name-prefix`/`--tags`.
+- Add `hosts edit`/`hosts set` to update fields on a saved host.
+- Add `hosts test --all` and `hosts test --tag`.
+- Add `hosts export`/`hosts import` for backing up saved hosts.
+- Add `hosts list --json` and a saved-password indicator (never the value).
+- Add `doctor --network` with DNS, internet, gateway, and PyPI version checks.
+- Add `doctor` checks for `~/.maxconn` writability and terminal/color capability.
+- Split the README into `README.md` (English) and `README.pt-BR.md`, add a
+  Quick Start section, and group the CLI reference by category.
+- Add the missing `py.typed` marker file so type checkers actually use
+  maxconn's type hints when it's installed as a dependency (the package
+  already declared `Typing :: Typed` but never shipped the marker).
+
 ## 0.1.19 - 2026-08-14
 
 - Add local command history with `maxconn history list/show/clear`.
