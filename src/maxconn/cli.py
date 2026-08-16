@@ -213,8 +213,7 @@ def _sftp_attrs_payload(host: str, path: str, attrs: Any) -> dict[str, Any]:
     }
 
 
-def main(argv: list[str] | None = None) -> int:
-    resolved_argv = sys.argv[1:] if argv is None else argv
+def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="maxconn", description="Network automation toolkit CLI.")
     parser.add_argument("--version", action="store_true", help="print version and exit")
     subparsers = parser.add_subparsers(dest="protocol", required=True)
@@ -351,6 +350,10 @@ def main(argv: list[str] | None = None) -> int:
     subparsers.add_parser("selftest", help="run quick local CLI checks")
     subparsers.add_parser("start", help="launch the interactive maxconn shell")
 
+    completion_command = subparsers.add_parser("completion", help="print a shell completion script")
+    completion_command.add_argument("shell", choices=("bash", "zsh", "powershell"), nargs="?")
+    completion_command.add_argument("--_list", nargs="*", dest="list_path", help=argparse.SUPPRESS)
+
     traceroute_command = subparsers.add_parser("traceroute", help="show network path to a host")
     traceroute_command.add_argument("host")
     traceroute_command.add_argument("--timeout", type=float, default=30.0)
@@ -421,10 +424,16 @@ def main(argv: list[str] | None = None) -> int:
         if action == "walk":
             snmp_action.add_argument("--limit", type=int, default=100)
 
+    return parser
+
+
+def main(argv: list[str] | None = None) -> int:
+    resolved_argv = sys.argv[1:] if argv is None else argv
     if resolved_argv == ["--version"]:
         print(f"maxconn {maxconn.__version__}")
         return 0
 
+    parser = _build_parser()
     try:
         args = parser.parse_args(resolved_argv)
         if args.protocol == "hosts":
@@ -754,6 +763,26 @@ def main(argv: list[str] | None = None) -> int:
             from maxconn.ui.shell import main as shell_main
 
             return shell_main()
+
+        if args.protocol == "completion":
+            from maxconn.completion import (
+                build_command_tree,
+                candidates_for_path,
+                render_bash,
+                render_powershell,
+                render_zsh,
+            )
+
+            tree = build_command_tree(_build_parser())
+            if args.list_path is not None:
+                for candidate in candidates_for_path(tree, args.list_path):
+                    print(candidate)
+                return 0
+            if not args.shell:
+                raise ValueError("completion requires a shell: bash, zsh, or powershell")
+            renderer = {"bash": render_bash, "zsh": render_zsh, "powershell": render_powershell}[args.shell]
+            print(renderer(tree))
+            return 0
 
         if args.protocol == "traceroute":
             result = maxconn.traceroute(args.host, timeout=args.timeout)
