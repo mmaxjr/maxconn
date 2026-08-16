@@ -120,8 +120,34 @@ class HistoryStore:
         self.history_path.unlink(missing_ok=True)
 
     def _next_id(self) -> int:
-        entries = self.list()
-        return (entries[-1].id + 1) if entries else 1
+        last_line = self._read_last_line()
+        if last_line is None:
+            return 1
+        return int(json.loads(last_line)["id"]) + 1
+
+    def _read_last_line(self) -> str | None:
+        if not self.history_path.exists():
+            return None
+        block_size = 4096
+        with self.history_path.open("rb") as handle:
+            handle.seek(0, 2)
+            file_size = handle.tell()
+            if file_size == 0:
+                return None
+            data = b""
+            position = file_size
+            while position > 0:
+                read_size = min(block_size, position)
+                position -= read_size
+                handle.seek(position)
+                data = handle.read(read_size) + data
+                if b"\n" in data.rstrip(b"\n"):
+                    break
+        trimmed = data.rstrip(b"\n")
+        last_line = trimmed[trimmed.rfind(b"\n") + 1 :]
+        if not last_line.strip():
+            return None
+        return last_line.decode("utf-8")
 
 
 def format_history_table(entries: list[HistoryEntry]) -> str:
