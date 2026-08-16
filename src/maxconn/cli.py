@@ -8,6 +8,7 @@ import shutil
 import sys
 import time
 from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict
 from datetime import datetime
 from pathlib import Path
@@ -27,6 +28,8 @@ from maxconn.hosts import (
 )
 from maxconn.net.mtr import run_mtr_table
 from maxconn.protocol.snmp import SNMPClient
+
+HOSTS_TEST_MAX_WORKERS = 16
 
 
 def _parse_ports(raw: str) -> list[int]:
@@ -472,10 +475,15 @@ def main(argv: list[str] | None = None) -> int:
                     if not entries:
                         print("no matching hosts", file=sys.stderr)
                         return 1
+
+                    def _test_one(entry: HostEntry) -> Any:
+                        return maxconn.scan(entry.host, ports=[entry.port], timeout=args.timeout, concurrency=1)[0]
+
+                    worker_count = min(HOSTS_TEST_MAX_WORKERS, len(entries))
+                    with ThreadPoolExecutor(max_workers=worker_count) as executor:
+                        results = list(executor.map(_test_one, entries))
                     all_open = True
-                    for entry in entries:
-                        results = maxconn.scan(entry.host, ports=[entry.port], timeout=args.timeout, concurrency=1)
-                        result = results[0]
+                    for entry, result in zip(entries, results):
                         status = "open" if result.open else "closed"
                         all_open = all_open and result.open
                         print(

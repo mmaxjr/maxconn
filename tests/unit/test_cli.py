@@ -1,4 +1,6 @@
 import json
+import threading
+import time
 
 import maxconn.cli
 from maxconn.exceptions import ConnectionTimeoutError, ProtocolError
@@ -1155,6 +1157,63 @@ def test_cli_hosts_test_all_returns_nonzero_when_any_host_is_closed(monkeypatch,
     )
 
     assert maxconn.cli.main(["hosts", "test", "--all"]) == 1
+
+
+def test_cli_hosts_test_all_runs_scans_concurrently(monkeypatch, tmp_path, capsys):
+    # Regression: hosts test --all/--tag used to scan hosts one at a time in
+    # a plain for-loop, so N saved hosts took N * timeout in the worst case
+    # instead of running in parallel like discover() already does.
+    store = HostStore(base_dir=tmp_path)
+    for i in range(5):
+        store.add(HostEntry(name=f"olt-0{i}", host=f"10.0.0.{i}", port=22, protocol="ssh"))
+    monkeypatch.setattr(maxconn.cli, "_host_store", lambda: store)
+
+    started = threading.Event()
+    max_concurrent = []
+    active = []
+    lock = threading.Lock()
+
+    def fake_scan(host, *, ports, timeout, concurrency):
+        with lock:
+            active.append(1)
+            max_concurrent.append(len(active))
+        started.wait(timeout=2.0)
+        with lock:
+            active.pop()
+        return [type("Result", (), {"open": True, "port": ports[0], "elapsed": 0.01})()]
+
+    monkeypatch.setattr(maxconn.cli.maxconn, "scan", fake_scan)
+
+    def release_soon():
+        time.sleep(0.1)
+        started.set()
+
+    threading.Thread(target=release_soon).start()
+
+    assert maxconn.cli.main(["hosts", "test", "--all"]) == 0
+
+    assert max(max_concurrent) > 1
+
+
+def test_cli_hosts_test_all_prints_results_in_host_name_order(monkeypatch, tmp_path, capsys):
+    store = HostStore(base_dir=tmp_path)
+    store.add(HostEntry(name="olt-01", host="10.0.0.1", port=22, protocol="ssh"))
+    store.add(HostEntry(name="olt-02", host="10.0.0.2", port=22, protocol="ssh"))
+    monkeypatch.setattr(maxconn.cli, "_host_store", lambda: store)
+
+    def fake_scan(host, *, ports, timeout, concurrency):
+        # olt-01 finishes slower than olt-02, but output order must still
+        # follow host order, not completion order.
+        if host == "10.0.0.1":
+            time.sleep(0.05)
+        return [type("Result", (), {"open": True, "port": ports[0], "elapsed": 0.01})()]
+
+    monkeypatch.setattr(maxconn.cli.maxconn, "scan", fake_scan)
+
+    assert maxconn.cli.main(["hosts", "test", "--all"]) == 0
+
+    output = capsys.readouterr().out
+    assert output.index("olt-01") < output.index("olt-02")
 
 
 def test_cli_hosts_edit_updates_only_given_fields(monkeypatch, tmp_path, capsys):
