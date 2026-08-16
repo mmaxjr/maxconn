@@ -3,6 +3,7 @@ import threading
 import time
 
 import maxconn.cli
+from maxconn.config import ConfigStore
 from maxconn.exceptions import ConnectionTimeoutError, ProtocolError
 from maxconn.hosts import HostEntry, HostStore
 from maxconn.ui.theme import get_theme
@@ -1396,6 +1397,61 @@ def test_cli_completion_list_shows_flags_for_a_leaf_subcommand(capsys):
     output = capsys.readouterr().out.splitlines()
     assert "--confirm" in output
     assert "--name-prefix" in output
+
+
+def test_cli_config_set_get_unset_list(monkeypatch, tmp_path, capsys):
+    store = ConfigStore(base_dir=tmp_path)
+    monkeypatch.setattr(maxconn.cli, "_config_store", lambda: store)
+
+    assert maxconn.cli.main(["config", "set", "timeout", "5"]) == 0
+    capsys.readouterr()
+
+    assert maxconn.cli.main(["config", "get", "timeout"]) == 0
+    assert capsys.readouterr().out.strip() == "5"
+
+    assert maxconn.cli.main(["config", "list"]) == 0
+    assert "timeout = 5" in capsys.readouterr().out
+
+    assert maxconn.cli.main(["config", "unset", "timeout"]) == 0
+    capsys.readouterr()
+
+    assert maxconn.cli.main(["config", "get", "timeout"]) == 1
+    assert "not set" in capsys.readouterr().err
+
+
+def test_cli_config_get_missing_key_returns_nonzero(monkeypatch, tmp_path, capsys):
+    store = ConfigStore(base_dir=tmp_path)
+    monkeypatch.setattr(maxconn.cli, "_config_store", lambda: store)
+
+    assert maxconn.cli.main(["config", "get", "workers"]) == 1
+    assert "not set" in capsys.readouterr().err
+
+
+def test_cli_config_list_reports_when_empty(monkeypatch, tmp_path, capsys):
+    store = ConfigStore(base_dir=tmp_path)
+    monkeypatch.setattr(maxconn.cli, "_config_store", lambda: store)
+
+    assert maxconn.cli.main(["config", "list"]) == 0
+    assert "no config values set" in capsys.readouterr().out
+
+
+def test_cli_config_default_is_applied_to_matching_flags(monkeypatch, tmp_path, capsys):
+    store = ConfigStore(base_dir=tmp_path)
+    store.set("timeout", "9")
+    monkeypatch.setattr(maxconn.cli, "_config_store", lambda: store)
+
+    calls = []
+    monkeypatch.setattr(
+        maxconn.cli.maxconn,
+        "ping",
+        lambda host, **kwargs: calls.append(kwargs) or type("Result", (), {
+            "host": host, "reachable": True, "elapsed": 0.01, "returncode": 0, "output": "", "error": ""
+        })(),
+    )
+
+    assert maxconn.cli.main(["ping", "192.0.2.1"]) == 0
+
+    assert calls[0]["timeout"] == 9.0
 
 
 def test_cli_prints_friendly_error(monkeypatch, capsys):

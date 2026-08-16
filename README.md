@@ -114,6 +114,16 @@ source <(maxconn completion zsh)      # add to ~/.zshrc
 maxconn completion powershell | Out-String | Invoke-Expression   # add to $PROFILE
 ```
 
+Local defaults, so you don't have to repeat `--timeout`/`--concurrency`/`--workers`/`--ports` on every call:
+
+```bash
+maxconn config set timeout 5
+maxconn config set ports 22,80,443
+maxconn config get timeout
+maxconn config list
+maxconn config unset timeout
+```
+
 ### Discovery
 
 ```bash
