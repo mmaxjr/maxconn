@@ -16,6 +16,8 @@ from typing import Any
 
 import maxconn
 from maxconn import doctor
+from maxconn.config import ALLOWED_KEYS as ALLOWED_CONFIG_KEYS
+from maxconn.config import ConfigStore
 from maxconn.exceptions import MaxConnError
 from maxconn.history import HistoryStore, format_history_csv, format_history_table, parse_since
 from maxconn.hosts import (
@@ -30,6 +32,22 @@ from maxconn.net.mtr import run_mtr_table
 from maxconn.protocol.snmp import SNMPClient
 
 HOSTS_TEST_MAX_WORKERS = 16
+
+
+def _config_store() -> ConfigStore:
+    return ConfigStore()
+
+
+def _apply_config_defaults(parser: argparse.ArgumentParser, config: dict[str, str]) -> None:
+    for action in parser._actions:
+        if isinstance(action, argparse._SubParsersAction):
+            for subparser in action.choices.values():
+                _apply_config_defaults(subparser, config)
+            continue
+        if action.dest in config:
+            raw = config[action.dest]
+            action.default = action.type(raw) if action.type else raw
+            action.required = False
 
 
 def _parse_ports(raw: str) -> list[int]:
@@ -354,6 +372,17 @@ def _build_parser() -> argparse.ArgumentParser:
     completion_command.add_argument("shell", choices=("bash", "zsh", "powershell"), nargs="?")
     completion_command.add_argument("--_list", nargs="*", dest="list_path", help=argparse.SUPPRESS)
 
+    config_command = subparsers.add_parser("config", help="manage local CLI defaults")
+    config_subcommands = config_command.add_subparsers(dest="config_action", required=True)
+    config_set = config_subcommands.add_parser("set", help="set a default value")
+    config_set.add_argument("key", choices=ALLOWED_CONFIG_KEYS)
+    config_set.add_argument("value")
+    config_get = config_subcommands.add_parser("get", help="print a default value")
+    config_get.add_argument("key", choices=ALLOWED_CONFIG_KEYS)
+    config_unset = config_subcommands.add_parser("unset", help="remove a default value")
+    config_unset.add_argument("key", choices=ALLOWED_CONFIG_KEYS)
+    config_subcommands.add_parser("list", help="list all default values")
+
     traceroute_command = subparsers.add_parser("traceroute", help="show network path to a host")
     traceroute_command.add_argument("host")
     traceroute_command.add_argument("--timeout", type=float, default=30.0)
@@ -424,6 +453,9 @@ def _build_parser() -> argparse.ArgumentParser:
         if action == "walk":
             snmp_action.add_argument("--limit", type=int, default=100)
 
+    config = _config_store().load()
+    if config:
+        _apply_config_defaults(parser, config)
     return parser
 
 
@@ -783,6 +815,32 @@ def main(argv: list[str] | None = None) -> int:
             renderer = {"bash": render_bash, "zsh": render_zsh, "powershell": render_powershell}[args.shell]
             print(renderer(tree))
             return 0
+
+        if args.protocol == "config":
+            store = _config_store()
+            if args.config_action == "set":
+                store.set(args.key, args.value)
+                print(f"set {args.key} = {args.value}")
+                return 0
+            if args.config_action == "get":
+                value = store.get(args.key)
+                if value is None:
+                    print(f"{args.key} is not set", file=sys.stderr)
+                    return 1
+                print(value)
+                return 0
+            if args.config_action == "unset":
+                store.unset(args.key)
+                print(f"unset {args.key}")
+                return 0
+            if args.config_action == "list":
+                data = store.load()
+                if not data:
+                    print("no config values set")
+                    return 0
+                for key, value in sorted(data.items()):
+                    print(f"{key} = {value}")
+                return 0
 
         if args.protocol == "traceroute":
             result = maxconn.traceroute(args.host, timeout=args.timeout)
