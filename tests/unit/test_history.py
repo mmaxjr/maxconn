@@ -15,6 +15,60 @@ from maxconn.history import (
 )
 
 
+def test_next_id_does_not_read_the_whole_history_file(tmp_path, monkeypatch):
+    # Regression: _next_id() used to call list(), which parses every line in
+    # history.jsonl just to find the highest id - O(n) per record() call.
+    # It should instead read only the tail of the file.
+    store = HistoryStore(base_dir=tmp_path)
+    for i in range(5):
+        store.record(
+            alias=None,
+            host="10.0.0.1",
+            port=22,
+            protocol="ssh",
+            username="admin",
+            command=f"command {i}",
+            ok=True,
+            exit_status=0,
+            duration=0.1,
+            origin="cli",
+        )
+
+    def boom(self):
+        raise AssertionError("list() should not be called by _next_id()")
+
+    monkeypatch.setattr(HistoryStore, "list", boom)
+
+    entry = store.record(
+        alias=None,
+        host="10.0.0.1",
+        port=22,
+        protocol="ssh",
+        username="admin",
+        command="command 5",
+        ok=True,
+        exit_status=0,
+        duration=0.1,
+        origin="cli",
+    )
+
+    assert entry.id == 6
+
+
+def test_next_id_is_1_for_a_missing_history_file(tmp_path):
+    store = HistoryStore(base_dir=tmp_path)
+
+    assert store._next_id() == 1
+
+
+def test_next_id_is_1_for_an_empty_history_file(tmp_path):
+    store = HistoryStore(base_dir=tmp_path)
+    store.history_path.parent.mkdir(parents=True, exist_ok=True)
+    store.history_path.write_text("", encoding="utf-8")
+
+    assert store._next_id() == 1
+
+
 def test_history_store_records_entries_without_secrets(tmp_path):
     store = HistoryStore(base_dir=tmp_path)
 
