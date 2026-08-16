@@ -36,6 +36,16 @@
 - Add the missing `py.typed` marker file so type checkers actually use
   maxconn's type hints when it's installed as a dependency (the package
   already declared `Typing :: Typed` but never shipped the marker).
+- Make `HistoryStore._next_id()` O(1) instead of parsing the whole
+  `history.jsonl` file on every command execution.
+- Run `hosts test --all`/`--tag` scans concurrently instead of one host
+  at a time.
+- Add `maxconn completion {bash,zsh,powershell}` for native shell
+  completion of commands and flags.
+- Add `maxconn config set/get/unset/list` for local CLI defaults
+  (`timeout`, `concurrency`, `workers`, `ports`).
+- Split `cli.py` into a `maxconn/cli/` package, one module per command
+  group, for maintainability (no behavior change).
 
 ## 0.1.19 - 2026-08-14
 
