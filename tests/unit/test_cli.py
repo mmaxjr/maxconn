@@ -1345,6 +1345,59 @@ def test_cli_selftest_prints_basic_checks(capsys):
     assert "json=ok" in output
 
 
+def test_cli_completion_bash_prints_a_script(capsys):
+    assert maxconn.cli.main(["completion", "bash"]) == 0
+
+    output = capsys.readouterr().out
+    assert "complete -F" in output
+    assert "maxconn" in output
+
+
+def test_cli_completion_zsh_prints_a_script(capsys):
+    assert maxconn.cli.main(["completion", "zsh"]) == 0
+
+    output = capsys.readouterr().out
+    assert "bashcompinit" in output
+
+
+def test_cli_completion_powershell_prints_a_script(capsys):
+    assert maxconn.cli.main(["completion", "powershell"]) == 0
+
+    output = capsys.readouterr().out
+    assert "Register-ArgumentCompleter" in output
+
+
+def test_cli_completion_without_shell_prints_clean_error(capsys):
+    assert maxconn.cli.main(["completion"]) == 1
+    assert "shell" in capsys.readouterr().err
+
+
+def test_cli_completion_list_at_root_includes_top_level_commands(capsys):
+    assert maxconn.cli.main(["completion", "--_list"]) == 0
+
+    output = capsys.readouterr().out.splitlines()
+    assert "hosts" in output
+    assert "discover" in output
+    assert "--version" in output
+
+
+def test_cli_completion_list_descends_into_hosts_subcommands(capsys):
+    assert maxconn.cli.main(["completion", "--_list", "hosts"]) == 0
+
+    output = capsys.readouterr().out.splitlines()
+    assert "add" in output
+    assert "test" in output
+    assert "export" in output
+
+
+def test_cli_completion_list_shows_flags_for_a_leaf_subcommand(capsys):
+    assert maxconn.cli.main(["completion", "--_list", "discover"]) == 0
+
+    output = capsys.readouterr().out.splitlines()
+    assert "--confirm" in output
+    assert "--name-prefix" in output
+
+
 def test_cli_prints_friendly_error(monkeypatch, capsys):
     def fake_scan(*args, **kwargs):
         raise ValueError("bad input")

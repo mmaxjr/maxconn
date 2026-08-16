@@ -106,6 +106,14 @@ maxconn hosts save-recent 1 --name olt-01 --profile huawei --tags olt
 maxconn start                                       # themeable interactive terminal
 ```
 
+Shell completion (bash/zsh/PowerShell) for commands and flags:
+
+```bash
+source <(maxconn completion bash)     # add to ~/.bashrc
+source <(maxconn completion zsh)      # add to ~/.zshrc
+maxconn completion powershell | Out-String | Invoke-Expression   # add to $PROFILE
+```
+
 ### Discovery
 
 ```bash

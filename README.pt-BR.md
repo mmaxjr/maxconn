@@ -110,6 +110,14 @@ maxconn hosts save-recent 1 --name olt-01 --profile huawei --tags olt
 maxconn start                                       # terminal interativo com temas
 ```
 
+Autocomplete de shell (bash/zsh/PowerShell) para comandos e flags:
+
+```bash
+source <(maxconn completion bash)     # adicionar ao ~/.bashrc
+source <(maxconn completion zsh)      # adicionar ao ~/.zshrc
+maxconn completion powershell | Out-String | Invoke-Expression   # adicionar ao $PROFILE
+```
+
 ### Descoberta
 
 ```bash
