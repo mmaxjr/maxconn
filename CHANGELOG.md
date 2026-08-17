@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.3.0 - 2026-08-17
+
+- Add `maxconn hosts run --all`/`--tag TAG --command "..."` to run a
+  command across multiple saved hosts concurrently.
+- Add `maxconn backup HOST` to save a device's running configuration
+  locally, with a per-profile default fetch command.
+- Add `maxconn diff FILE1 FILE2` for a unified diff between two config
+  backups.
+- Add `maxconn inventory` to list saved hosts as a structured
+  inventory (text/json/csv).
+- Add `maxconn inventory --reconcile NETWORK` to compare saved hosts
+  against a live `discover` scan (documented-but-unreachable /
+  undocumented-but-reachable reporting).
+- Add `maxconn audit tail` and an opt-in persistent audit log
+  (`maxconn config set audit_log on`).
+- Add an opt-in cached PyPI update-check notice
+  (`maxconn config set update_notify on`), at most once per 24h.
+
 ## 0.2.0 - 2026-08-16
 
 - Fix SSH session-key derivation for the `diffie-hellman-group14-sha1`/`hmac-sha1`

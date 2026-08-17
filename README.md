@@ -69,7 +69,7 @@ pytest -v
 ruff check src tests
 ```
 
-Current development version: `0.2.0`.
+Current development version: `0.3.0`.
 
 ## Module Status
 
