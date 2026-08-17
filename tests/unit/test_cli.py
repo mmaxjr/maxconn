@@ -1521,6 +1521,70 @@ def test_cli_inventory_reconcile_is_clean_when_everything_matches(monkeypatch, t
     assert maxconn.cli.main(["inventory", "--reconcile", "10.0.0.0/24"]) == 0
 
 
+def test_cli_audit_tail_reports_when_no_log_exists(monkeypatch, tmp_path, capsys):
+    monkeypatch.setattr(maxconn.cli, "DEFAULT_BASE_DIR", tmp_path)
+
+    assert maxconn.cli.main(["audit", "tail"]) == 0
+    assert "audit_log on" in capsys.readouterr().out
+
+
+def test_cli_audit_tail_shows_recent_entries(monkeypatch, tmp_path, capsys):
+    monkeypatch.setattr(maxconn.cli, "DEFAULT_BASE_DIR", tmp_path)
+    log_path = tmp_path / "audit.jsonl"
+    log_path.write_text(
+        '{"message": "command completed", "host": "10.0.0.1"}\n'
+        '{"message": "command completed", "host": "10.0.0.2"}\n',
+        encoding="utf-8",
+    )
+
+    assert maxconn.cli.main(["audit", "tail"]) == 0
+
+    output = capsys.readouterr().out
+    assert "10.0.0.1" in output
+    assert "10.0.0.2" in output
+
+
+def test_cli_audit_tail_respects_limit(monkeypatch, tmp_path, capsys):
+    monkeypatch.setattr(maxconn.cli, "DEFAULT_BASE_DIR", tmp_path)
+    log_path = tmp_path / "audit.jsonl"
+    log_path.write_text(
+        "\n".join(f'{{"message": "command completed", "host": "10.0.0.{i}"}}' for i in range(5)) + "\n",
+        encoding="utf-8",
+    )
+
+    assert maxconn.cli.main(["audit", "tail", "-n", "2"]) == 0
+
+    output = capsys.readouterr().out
+    assert "10.0.0.3" in output
+    assert "10.0.0.4" in output
+    assert "10.0.0.0" not in output
+
+
+def test_cli_audit_tail_json_output(monkeypatch, tmp_path, capsys):
+    monkeypatch.setattr(maxconn.cli, "DEFAULT_BASE_DIR", tmp_path)
+    log_path = tmp_path / "audit.jsonl"
+    log_path.write_text('{"message": "command completed", "host": "10.0.0.1"}\n', encoding="utf-8")
+
+    assert maxconn.cli.main(["audit", "tail", "--json"]) == 0
+
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["entries"][0]["host"] == "10.0.0.1"
+
+
+def test_cli_enables_persistent_audit_log_when_config_flag_is_on(monkeypatch, tmp_path, capsys):
+    store = ConfigStore(base_dir=tmp_path)
+    store.set("audit_log", "on")
+    monkeypatch.setattr(maxconn.cli, "_config_store", lambda: store)
+    monkeypatch.setattr(maxconn.cli, "DEFAULT_BASE_DIR", tmp_path)
+
+    assert maxconn.cli.main(["selftest"]) == 0
+
+    logging_module = __import__("logging")
+    logger = logging_module.getLogger("maxconn.audit")
+    assert any(getattr(h, "_maxconn_persistent", False) for h in logger.handlers)
+    logger.handlers = [h for h in logger.handlers if not getattr(h, "_maxconn_persistent", False)]
+
+
 def test_cli_hosts_list_json_includes_has_password_but_not_the_value(monkeypatch, tmp_path, capsys):
     store = HostStore(base_dir=tmp_path)
     store.add(HostEntry(name="bgp-view", host="10.0.0.1", port=22, protocol="ssh", password="topsecret"))

@@ -180,6 +180,9 @@ maxconn history show 1
 maxconn history replay 1
 maxconn history clear
 maxconn selftest
+maxconn config set audit_log on                      # grava o trilha de auditoria em ~/.maxconn/audit.jsonl
+maxconn audit tail
+maxconn audit tail -n 50 --json
 ```
 
 ### Transferência de arquivos (SFTP)

@@ -58,4 +58,4 @@ def test_config_set_rejects_an_unknown_key(tmp_path):
 
 
 def test_allowed_keys_covers_the_documented_defaults():
-    assert set(ALLOWED_KEYS) == {"timeout", "concurrency", "workers", "ports"}
+    assert set(ALLOWED_KEYS) == {"timeout", "concurrency", "workers", "ports", "audit_log"}
