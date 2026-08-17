@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import json
 import socket
+from datetime import datetime, timedelta, timezone
 
 from maxconn.doctor import (
     check_dir_writable,
     check_dns,
+    check_for_update,
     check_internet,
     check_terminal,
     compare_versions,
@@ -75,3 +78,69 @@ def test_compare_versions_ahead_of_pypi():
 
 def test_compare_versions_unknown_when_latest_missing():
     assert compare_versions("0.1.19", None) == "unknown"
+
+
+def test_check_for_update_fetches_and_caches_when_no_cache_exists(tmp_path, monkeypatch):
+    import maxconn.doctor as doctor_module
+
+    monkeypatch.setattr(doctor_module, "fetch_latest_pypi_version", lambda **kwargs: "99.0.0")
+
+    notice = check_for_update(tmp_path, current_version="0.1.0")
+
+    assert notice is not None
+    assert "99.0.0" in notice
+    cache = json.loads((tmp_path / "update_check.json").read_text(encoding="utf-8"))
+    assert cache["latest_version"] == "99.0.0"
+
+
+def test_check_for_update_uses_a_fresh_cache_without_a_new_fetch(tmp_path, monkeypatch):
+    import maxconn.doctor as doctor_module
+
+    cache_path = tmp_path / "update_check.json"
+    now = datetime.now(timezone.utc)
+    cache_path.write_text(
+        json.dumps({"checked_at": now.isoformat(), "latest_version": "99.0.0"}), encoding="utf-8"
+    )
+
+    def boom(**kwargs):
+        raise AssertionError("fetch_latest_pypi_version should not be called with a fresh cache")
+
+    monkeypatch.setattr(doctor_module, "fetch_latest_pypi_version", boom)
+
+    notice = check_for_update(tmp_path, current_version="0.1.0", now=now)
+
+    assert notice is not None
+    assert "99.0.0" in notice
+
+
+def test_check_for_update_refetches_when_cache_is_stale(tmp_path, monkeypatch):
+    import maxconn.doctor as doctor_module
+
+    cache_path = tmp_path / "update_check.json"
+    stale_time = datetime.now(timezone.utc) - timedelta(hours=25)
+    cache_path.write_text(
+        json.dumps({"checked_at": stale_time.isoformat(), "latest_version": "0.1.0"}), encoding="utf-8"
+    )
+
+    monkeypatch.setattr(doctor_module, "fetch_latest_pypi_version", lambda **kwargs: "5.0.0")
+
+    notice = check_for_update(tmp_path, current_version="0.1.0")
+
+    assert notice is not None
+    assert "5.0.0" in notice
+
+
+def test_check_for_update_returns_none_when_up_to_date(tmp_path, monkeypatch):
+    import maxconn.doctor as doctor_module
+
+    monkeypatch.setattr(doctor_module, "fetch_latest_pypi_version", lambda **kwargs: "0.1.0")
+
+    assert check_for_update(tmp_path, current_version="0.1.0") is None
+
+
+def test_check_for_update_returns_none_and_does_not_raise_when_fetch_fails(tmp_path, monkeypatch):
+    import maxconn.doctor as doctor_module
+
+    monkeypatch.setattr(doctor_module, "fetch_latest_pypi_version", lambda **kwargs: None)
+
+    assert check_for_update(tmp_path, current_version="0.1.0") is None

@@ -7,7 +7,10 @@ import socket
 import sys
 import urllib.error
 import urllib.request
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
+
+UPDATE_CHECK_INTERVAL = timedelta(hours=24)
 
 
 def check_dir_writable(path: Path) -> bool:
@@ -113,3 +116,46 @@ def compare_versions(local: str, latest: str | None) -> str:
 
 def _version_tuple(version: str) -> tuple[int, ...]:
     return tuple(int(part) for part in re.findall(r"\d+", version))
+
+
+def check_for_update(
+    base_dir: str | Path,
+    *,
+    current_version: str,
+    package: str = "maxconn",
+    now: datetime | None = None,
+) -> str | None:
+    """Return a one-line update notice, using a once-a-day cached PyPI check.
+
+    Never raises - network failures are cached and silently swallowed, same
+    as fetch_latest_pypi_version() itself.
+    """
+    reference = now if now is not None else datetime.now(timezone.utc)
+    cache_path = Path(base_dir) / "update_check.json"
+    latest = _load_cached_latest_version(cache_path, reference)
+    if latest is None:
+        latest = fetch_latest_pypi_version(package=package)
+        try:
+            cache_path.parent.mkdir(parents=True, exist_ok=True)
+            cache_path.write_text(
+                json.dumps({"checked_at": reference.isoformat(), "latest_version": latest}),
+                encoding="utf-8",
+            )
+        except OSError:
+            pass
+
+    if compare_versions(current_version, latest) != "update-available":
+        return None
+    return f"maxconn {latest} is available (you have {current_version}) - pip install --upgrade maxconn"
+
+
+def _load_cached_latest_version(cache_path: Path, reference: datetime) -> str | None:
+    try:
+        data = json.loads(cache_path.read_text(encoding="utf-8"))
+        checked_at = datetime.fromisoformat(data["checked_at"])
+        latest_version = data.get("latest_version")
+    except (OSError, ValueError, KeyError):
+        return None
+    if reference - checked_at > UPDATE_CHECK_INTERVAL:
+        return None
+    return latest_version

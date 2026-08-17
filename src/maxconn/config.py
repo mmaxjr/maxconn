@@ -7,7 +7,7 @@ from typing import Any
 from maxconn._file_lock import locked
 from maxconn.hosts import DEFAULT_BASE_DIR
 
-ALLOWED_KEYS = ("timeout", "concurrency", "workers", "ports", "audit_log")
+ALLOWED_KEYS = ("timeout", "concurrency", "workers", "ports", "audit_log", "update_notify")
 
 
 class ConfigStore:
