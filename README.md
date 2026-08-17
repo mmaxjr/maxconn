@@ -137,6 +137,18 @@ maxconn diff backup-2026-08-01.cfg backup-2026-08-16.cfg --json
 
 Backups default to `~/.maxconn/backups/<host>/<timestamp>.cfg` unless `--to PATH` is given. The default backup command is looked up from the saved host's `--profile` (`cisco`, `huawei`, `mikrotik`); pass `--command` explicitly for anything else.
 
+### Inventory
+
+```bash
+maxconn inventory
+maxconn inventory --json
+maxconn inventory --output csv --export inventory.csv
+maxconn inventory --reconcile 192.168.0.0/24          # planned (saved hosts) vs. provisioned (live scan)
+maxconn inventory --reconcile 192.168.0.0/24 --json
+```
+
+`--reconcile` runs a live `discover` scan of the given network and reports saved hosts that were not seen reachable ("documented but unreachable") alongside reachable hosts that aren't in your saved inventory ("undocumented"). Exit code is `1` when there's drift, `0` when everything matches - useful for scripted checks.
+
 ### Discovery
 
 ```bash

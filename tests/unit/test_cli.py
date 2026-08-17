@@ -1449,6 +1449,78 @@ def test_cli_diff_json_output(tmp_path, capsys):
     assert any("hostname olt-02" in line for line in payload["diff"])
 
 
+def test_cli_inventory_prints_saved_hosts_table(monkeypatch, tmp_path, capsys):
+    store = HostStore(base_dir=tmp_path)
+    store.add(HostEntry(name="olt-01", host="10.0.0.1", port=22, protocol="ssh", profile="huawei"))
+    monkeypatch.setattr(maxconn.cli, "_host_store", lambda: store)
+
+    assert maxconn.cli.main(["inventory"]) == 0
+
+    output = capsys.readouterr().out
+    assert "olt-01" in output
+    assert "10.0.0.1" in output
+
+
+def test_cli_inventory_json_never_includes_password(monkeypatch, tmp_path, capsys):
+    store = HostStore(base_dir=tmp_path)
+    store.add(HostEntry(name="olt-01", host="10.0.0.1", port=22, protocol="ssh", password="topsecret"))
+    monkeypatch.setattr(maxconn.cli, "_host_store", lambda: store)
+
+    assert maxconn.cli.main(["inventory", "--json"]) == 0
+
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["hosts"][0]["name"] == "olt-01"
+    assert "password" not in payload["hosts"][0]
+    assert "topsecret" not in capsys.readouterr().out
+
+
+def test_cli_inventory_csv_output(monkeypatch, tmp_path, capsys):
+    store = HostStore(base_dir=tmp_path)
+    store.add(HostEntry(name="olt-01", host="10.0.0.1", port=22, protocol="ssh"))
+    monkeypatch.setattr(maxconn.cli, "_host_store", lambda: store)
+
+    assert maxconn.cli.main(["inventory", "--output", "csv"]) == 0
+
+    output = capsys.readouterr().out
+    lines = output.strip().splitlines()
+    assert lines[0].split(",")[:2] == ["name", "host"]
+    assert "olt-01" in lines[1]
+
+
+def test_cli_inventory_reconcile_reports_missing_and_undocumented_hosts(monkeypatch, tmp_path, capsys):
+    store = HostStore(base_dir=tmp_path)
+    store.add(HostEntry(name="olt-01", host="10.0.0.1", port=22, protocol="ssh"))
+    store.add(HostEntry(name="olt-02", host="10.0.0.2", port=22, protocol="ssh"))
+    monkeypatch.setattr(maxconn.cli, "_host_store", lambda: store)
+
+    def fake_discover(network, *, confirm=False, **kwargs):
+        return [
+            type("Result", (), {"host": "10.0.0.1", "reachable": True})(),
+            type("Result", (), {"host": "10.0.0.99", "reachable": True})(),
+        ]
+
+    monkeypatch.setattr(maxconn.cli.maxconn, "discover", fake_discover)
+
+    assert maxconn.cli.main(["inventory", "--reconcile", "10.0.0.0/24"]) == 1
+
+    output = capsys.readouterr().out
+    assert "10.0.0.2" in output  # documented but not seen
+    assert "10.0.0.99" in output  # seen but not documented
+
+
+def test_cli_inventory_reconcile_is_clean_when_everything_matches(monkeypatch, tmp_path, capsys):
+    store = HostStore(base_dir=tmp_path)
+    store.add(HostEntry(name="olt-01", host="10.0.0.1", port=22, protocol="ssh"))
+    monkeypatch.setattr(maxconn.cli, "_host_store", lambda: store)
+    monkeypatch.setattr(
+        maxconn.cli.maxconn,
+        "discover",
+        lambda network, **kwargs: [type("Result", (), {"host": "10.0.0.1", "reachable": True})()],
+    )
+
+    assert maxconn.cli.main(["inventory", "--reconcile", "10.0.0.0/24"]) == 0
+
+
 def test_cli_hosts_list_json_includes_has_password_but_not_the_value(monkeypatch, tmp_path, capsys):
     store = HostStore(base_dir=tmp_path)
     store.add(HostEntry(name="bgp-view", host="10.0.0.1", port=22, protocol="ssh", password="topsecret"))
