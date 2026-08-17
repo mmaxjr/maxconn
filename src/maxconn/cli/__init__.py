@@ -143,6 +143,7 @@ def _split_username_host(value: str) -> tuple[str | None, str]:
 
 def _build_parser() -> argparse.ArgumentParser:
     from maxconn.cli import (
+        _audit_cmd,
         _config_ops,
         _connect,
         _doctor_cmd,
@@ -169,6 +170,7 @@ def _build_parser() -> argparse.ArgumentParser:
     _snmp.add_subparser(subparsers)
     _config_ops.add_subparser(subparsers)
     _inventory.add_subparser(subparsers)
+    _audit_cmd.add_subparser(subparsers)
 
     config = _config_store().load()
     if config:
@@ -178,6 +180,7 @@ def _build_parser() -> argparse.ArgumentParser:
 
 def _dispatch_table() -> dict[str, Callable[[argparse.Namespace], int]]:
     from maxconn.cli import (
+        _audit_cmd,
         _config_ops,
         _connect,
         _doctor_cmd,
@@ -210,6 +213,7 @@ def _dispatch_table() -> dict[str, Callable[[argparse.Namespace], int]]:
         "backup": _config_ops.dispatch_backup,
         "diff": _config_ops.dispatch_diff,
         "inventory": _inventory.dispatch,
+        "audit": _audit_cmd.dispatch,
     }
 
 
@@ -218,6 +222,11 @@ def main(argv: list[str] | None = None) -> int:
     if resolved_argv == ["--version"]:
         print(f"maxconn {maxconn.__version__}")
         return 0
+
+    if _config_store().get("audit_log") == "on":
+        from maxconn.audit import enable_persistent_audit_log
+
+        enable_persistent_audit_log(DEFAULT_BASE_DIR / "audit.jsonl")
 
     parser = _build_parser()
     try:
