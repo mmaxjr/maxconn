@@ -141,6 +141,18 @@ maxconn diff backup-2026-08-01.cfg backup-2026-08-16.cfg --json
 
 Backups vão por padrão para `~/.maxconn/backups/<host>/<timestamp>.cfg`, a menos que `--to CAMINHO` seja informado. O comando padrão de backup é resolvido a partir do `--profile` salvo do host (`cisco`, `huawei`, `mikrotik`); use `--command` explicitamente para qualquer outro caso.
 
+### Inventário
+
+```bash
+maxconn inventory
+maxconn inventory --json
+maxconn inventory --output csv --export inventario.csv
+maxconn inventory --reconcile 192.168.0.0/24          # planejado (hosts salvos) vs. provisionado (scan ao vivo)
+maxconn inventory --reconcile 192.168.0.0/24 --json
+```
+
+`--reconcile` roda um scan `discover` ao vivo na rede informada e reporta hosts salvos que não foram vistos alcançáveis ("documentado mas inalcançável") junto com hosts alcançáveis que não estão no inventário salvo ("não documentado"). O código de saída é `1` quando há divergência, `0` quando tudo bate - útil para checagens automatizadas.
+
 ### Descoberta
 
 ```bash

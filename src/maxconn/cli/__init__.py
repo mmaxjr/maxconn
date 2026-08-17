@@ -148,6 +148,7 @@ def _build_parser() -> argparse.ArgumentParser:
         _doctor_cmd,
         _history,
         _hosts,
+        _inventory,
         _meta,
         _net,
         _sftp,
@@ -167,6 +168,7 @@ def _build_parser() -> argparse.ArgumentParser:
     _sftp.add_subparser(subparsers)
     _snmp.add_subparser(subparsers)
     _config_ops.add_subparser(subparsers)
+    _inventory.add_subparser(subparsers)
 
     config = _config_store().load()
     if config:
@@ -181,6 +183,7 @@ def _dispatch_table() -> dict[str, Callable[[argparse.Namespace], int]]:
         _doctor_cmd,
         _history,
         _hosts,
+        _inventory,
         _meta,
         _net,
         _sftp,
@@ -206,6 +209,7 @@ def _dispatch_table() -> dict[str, Callable[[argparse.Namespace], int]]:
         "snmp": _snmp.dispatch,
         "backup": _config_ops.dispatch_backup,
         "diff": _config_ops.dispatch_diff,
+        "inventory": _inventory.dispatch,
     }
 
 
