@@ -179,7 +179,10 @@ maxconn selftest
 maxconn config set audit_log on                     # persist the audit trail to ~/.maxconn/audit.jsonl
 maxconn audit tail
 maxconn audit tail -n 50 --json
+maxconn config set update_notify on                 # a passive "new version available" hint after commands
 ```
+
+`update_notify` checks PyPI at most once every 24h (cached in `~/.maxconn/update_check.json`) and only prints a one-line notice to stderr when a newer version exists - it never blocks or fails a command, even if the check itself fails.
 
 ### File transfer (SFTP)
 

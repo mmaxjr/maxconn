@@ -1585,6 +1585,46 @@ def test_cli_enables_persistent_audit_log_when_config_flag_is_on(monkeypatch, tm
     logger.handlers = [h for h in logger.handlers if not getattr(h, "_maxconn_persistent", False)]
 
 
+def test_cli_prints_update_notice_when_enabled_and_outdated(monkeypatch, tmp_path, capsys):
+    store = ConfigStore(base_dir=tmp_path)
+    store.set("update_notify", "on")
+    monkeypatch.setattr(maxconn.cli, "_config_store", lambda: store)
+    monkeypatch.setattr(maxconn.cli, "DEFAULT_BASE_DIR", tmp_path)
+    monkeypatch.setattr(maxconn.cli.doctor, "fetch_latest_pypi_version", lambda **kwargs: "99.0.0")
+
+    assert maxconn.cli.main(["selftest"]) == 0
+
+    assert "99.0.0" in capsys.readouterr().err
+
+
+def test_cli_does_not_print_update_notice_when_disabled(monkeypatch, tmp_path, capsys):
+    store = ConfigStore(base_dir=tmp_path)
+    monkeypatch.setattr(maxconn.cli, "_config_store", lambda: store)
+    monkeypatch.setattr(maxconn.cli, "DEFAULT_BASE_DIR", tmp_path)
+    monkeypatch.setattr(
+        maxconn.cli.doctor,
+        "fetch_latest_pypi_version",
+        lambda **kwargs: (_ for _ in ()).throw(AssertionError("should not be called when update_notify is off")),
+    )
+
+    assert maxconn.cli.main(["selftest"]) == 0
+    assert capsys.readouterr().err == ""
+
+
+def test_cli_update_notice_failure_never_breaks_the_real_command(monkeypatch, tmp_path, capsys):
+    store = ConfigStore(base_dir=tmp_path)
+    store.set("update_notify", "on")
+    monkeypatch.setattr(maxconn.cli, "_config_store", lambda: store)
+    monkeypatch.setattr(maxconn.cli, "DEFAULT_BASE_DIR", tmp_path)
+
+    def boom(**kwargs):
+        raise RuntimeError("network exploded")
+
+    monkeypatch.setattr(maxconn.cli.doctor, "fetch_latest_pypi_version", boom)
+
+    assert maxconn.cli.main(["selftest"]) == 0
+
+
 def test_cli_hosts_list_json_includes_has_password_but_not_the_value(monkeypatch, tmp_path, capsys):
     store = HostStore(base_dir=tmp_path)
     store.add(HostEntry(name="bgp-view", host="10.0.0.1", port=22, protocol="ssh", password="topsecret"))

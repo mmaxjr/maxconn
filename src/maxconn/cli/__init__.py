@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import sys
 from collections.abc import Callable
@@ -223,7 +224,8 @@ def main(argv: list[str] | None = None) -> int:
         print(f"maxconn {maxconn.__version__}")
         return 0
 
-    if _config_store().get("audit_log") == "on":
+    config = _config_store().load()
+    if config.get("audit_log") == "on":
         from maxconn.audit import enable_persistent_audit_log
 
         enable_persistent_audit_log(DEFAULT_BASE_DIR / "audit.jsonl")
@@ -236,6 +238,17 @@ def main(argv: list[str] | None = None) -> int:
     except (MaxConnError, OSError, TimeoutError, ValueError, KeyError, IndexError) as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return 1
+    finally:
+        if config.get("update_notify") == "on":
+            _print_update_notice_if_any()
+
+
+def _print_update_notice_if_any() -> None:
+    # A passive notice must never break or mask the real command's result.
+    with contextlib.suppress(Exception):
+        notice = doctor.check_for_update(DEFAULT_BASE_DIR, current_version=maxconn.__version__)
+        if notice:
+            print(notice, file=sys.stderr)
 
 
 if __name__ == "__main__":
