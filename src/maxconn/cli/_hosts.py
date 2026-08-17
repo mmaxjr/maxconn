@@ -4,6 +4,7 @@ import argparse
 import getpass
 import json
 import sys
+import time
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict
 from pathlib import Path
@@ -11,6 +12,7 @@ from typing import Any
 
 import maxconn
 from maxconn import cli as _cli
+from maxconn.exceptions import MaxConnError
 from maxconn.hosts import HostEntry, format_hosts_table, format_seen_hosts_table, parse_tags
 
 
@@ -63,6 +65,15 @@ def add_subparser(subparsers: argparse._SubParsersAction) -> None:
     hosts_export.add_argument("--file", required=True, dest="export_file")
     hosts_import = hosts_subcommands.add_parser("import", help="import saved hosts from a JSON file")
     hosts_import.add_argument("--file", required=True, dest="import_file")
+    hosts_run = hosts_subcommands.add_parser("run", help="run a command across saved hosts")
+    hosts_run.add_argument("--command", required=True)
+    hosts_run.add_argument("--all", action="store_true", help="run on every saved host")
+    hosts_run.add_argument("--tag", help="run only on saved hosts with this tag")
+    hosts_run.add_argument("--username")
+    hosts_run.add_argument("--password")
+    hosts_run.add_argument("--ask-password", action="store_true")
+    hosts_run.add_argument("--timeout", type=float, default=10.0)
+    hosts_run.add_argument("--json", action="store_true", help="print JSON output")
 
 
 def _host_payload(entry: HostEntry) -> dict[str, Any]:
@@ -193,4 +204,64 @@ def dispatch(args: argparse.Namespace) -> int:
             imported += 1
         print(f"imported {imported} host(s) from {args.import_file}")
         return 0
+    if args.hosts_action == "run":
+        if not (args.all or args.tag):
+            raise ValueError("hosts run requires --all or --tag")
+        entries = store.list()
+        if args.tag:
+            entries = [entry for entry in entries if args.tag in (entry.tags or [])]
+        if not entries:
+            print("no matching hosts", file=sys.stderr)
+            return 1
+        password = getpass.getpass("Password: ") if args.ask_password else args.password
+
+        def _run_one(entry: HostEntry) -> tuple[str, bool, str]:
+            username = args.username or entry.username
+            resolved_password = password if password is not None else entry.password
+            if not username:
+                return entry.name, False, "no username available (saved host has none)"
+            started = time.monotonic()
+            try:
+                with maxconn.connect(
+                    entry.host,
+                    protocol=entry.protocol,
+                    username=username,
+                    password=resolved_password,
+                    port=entry.port,
+                    timeout=args.timeout,
+                ) as conn:
+                    result = conn.run(args.command, timeout=args.timeout)
+                    _cli._history_store().record(
+                        alias=entry.name,
+                        host=entry.host,
+                        port=entry.port,
+                        protocol=entry.protocol,
+                        username=username,
+                        command=args.command,
+                        ok=result.ok,
+                        exit_status=getattr(result, "exit_status", None),
+                        duration=time.monotonic() - started,
+                        origin="cli-bulk",
+                    )
+                    return entry.name, result.ok, result.text
+            except (MaxConnError, OSError, TimeoutError) as exc:
+                return entry.name, False, str(exc)
+
+        worker_count = min(_cli.HOSTS_RUN_MAX_WORKERS, len(entries))
+        with ThreadPoolExecutor(max_workers=worker_count) as executor:
+            results = list(executor.map(_run_one, entries))
+        if args.json:
+            _cli._json_output(
+                {
+                    "results": [
+                        {"host": name, "ok": ok, "output": output} for name, ok, output in results
+                    ]
+                }
+            )
+        else:
+            for name, ok, output in results:
+                status = "ok" if ok else "fail"
+                print(f"=== {name} ({status}) ===")
+                print(output, end="" if output.endswith("\n") else "\n")
+        return 0 if all(ok for _, ok, _ in results) else 1
     raise AssertionError(f"unhandled hosts action: {args.hosts_action}")

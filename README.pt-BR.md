@@ -105,6 +105,8 @@ maxconn hosts test --all
 maxconn hosts test --tag core
 maxconn hosts export --file hosts-backup.json
 maxconn hosts import --file hosts-backup.json
+maxconn hosts run --all --command "show version"
+maxconn hosts run --tag core --command "show version" --json
 maxconn hosts recent
 maxconn hosts save-recent 1 --name olt-01 --profile huawei --tags olt
 maxconn start                                       # terminal interativo com temas

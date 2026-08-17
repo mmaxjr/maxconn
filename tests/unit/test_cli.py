@@ -5,6 +5,7 @@ import time
 import maxconn.cli
 from maxconn.config import ConfigStore
 from maxconn.exceptions import ConnectionTimeoutError, ProtocolError
+from maxconn.history import HistoryStore
 from maxconn.hosts import HostEntry, HostStore
 from maxconn.ui.theme import get_theme
 
@@ -1265,6 +1266,90 @@ def test_cli_hosts_export_and_import_round_trip(monkeypatch, tmp_path, capsys):
     assert maxconn.cli.main(["hosts", "import", "--file", str(export_path)]) == 0
     assert other_store.get("olt-01").host == "10.0.0.1"
     assert other_store.get("olt-01").tags == ["core"]
+
+
+def test_cli_hosts_run_executes_command_on_every_matching_host(monkeypatch, tmp_path, capsys):
+    store = HostStore(base_dir=tmp_path)
+    store.add(HostEntry(name="olt-01", host="10.0.0.1", port=22, protocol="ssh", username="admin", tags=["core"]))
+    store.add(HostEntry(name="olt-02", host="10.0.0.2", port=22, protocol="ssh", username="admin", tags=["core"]))
+    monkeypatch.setattr(maxconn.cli, "_host_store", lambda: store)
+    monkeypatch.setattr(maxconn.cli, "_history_store", lambda: HistoryStore(base_dir=tmp_path))
+
+    calls = []
+
+    def fake_connect(host, **kwargs):
+        calls.append((host, kwargs))
+        return FakeConnection()
+
+    monkeypatch.setattr(maxconn.cli.maxconn, "connect", fake_connect)
+
+    assert maxconn.cli.main(["hosts", "run", "--all", "--command", "show version"]) == 0
+
+    output = capsys.readouterr().out
+    assert "olt-01" in output
+    assert "olt-02" in output
+    assert "device output" in output
+    assert len(calls) == 2
+
+
+def test_cli_hosts_run_tag_filters_by_tag(monkeypatch, tmp_path, capsys):
+    store = HostStore(base_dir=tmp_path)
+    store.add(HostEntry(name="olt-01", host="10.0.0.1", port=22, protocol="ssh", username="admin", tags=["core"]))
+    store.add(HostEntry(name="olt-02", host="10.0.0.2", port=22, protocol="ssh", username="admin", tags=["edge"]))
+    monkeypatch.setattr(maxconn.cli, "_host_store", lambda: store)
+    monkeypatch.setattr(maxconn.cli, "_history_store", lambda: HistoryStore(base_dir=tmp_path))
+    monkeypatch.setattr(maxconn.cli.maxconn, "connect", lambda host, **kwargs: FakeConnection())
+
+    assert maxconn.cli.main(["hosts", "run", "--tag", "core", "--command", "show version"]) == 0
+
+    output = capsys.readouterr().out
+    assert "olt-01" in output
+    assert "olt-02" not in output
+
+
+def test_cli_hosts_run_without_all_or_tag_prints_clean_error(monkeypatch, tmp_path, capsys):
+    store = HostStore(base_dir=tmp_path)
+    monkeypatch.setattr(maxconn.cli, "_host_store", lambda: store)
+
+    assert maxconn.cli.main(["hosts", "run", "--command", "show version"]) == 1
+    assert "--all" in capsys.readouterr().err or "--tag" in capsys.readouterr().err
+
+
+def test_cli_hosts_run_reports_per_host_failure_without_aborting_others(monkeypatch, tmp_path, capsys):
+    store = HostStore(base_dir=tmp_path)
+    store.add(HostEntry(name="olt-01", host="10.0.0.1", port=22, protocol="ssh", username="admin"))
+    store.add(HostEntry(name="olt-02", host="10.0.0.2", port=22, protocol="ssh", username="admin"))
+    monkeypatch.setattr(maxconn.cli, "_host_store", lambda: store)
+    monkeypatch.setattr(maxconn.cli, "_history_store", lambda: HistoryStore(base_dir=tmp_path))
+
+    def fake_connect(host, **kwargs):
+        if host == "10.0.0.1":
+            raise ProtocolError("connection refused")
+        return FakeConnection()
+
+    monkeypatch.setattr(maxconn.cli.maxconn, "connect", fake_connect)
+
+    assert maxconn.cli.main(["hosts", "run", "--all", "--command", "show version"]) == 1
+
+    output = capsys.readouterr().out
+    assert "olt-01 (fail)" in output
+    assert "connection refused" in output
+    assert "olt-02 (ok)" in output
+
+
+def test_cli_hosts_run_json_output(monkeypatch, tmp_path, capsys):
+    store = HostStore(base_dir=tmp_path)
+    store.add(HostEntry(name="olt-01", host="10.0.0.1", port=22, protocol="ssh", username="admin"))
+    monkeypatch.setattr(maxconn.cli, "_host_store", lambda: store)
+    monkeypatch.setattr(maxconn.cli, "_history_store", lambda: HistoryStore(base_dir=tmp_path))
+    monkeypatch.setattr(maxconn.cli.maxconn, "connect", lambda host, **kwargs: FakeConnection())
+
+    assert maxconn.cli.main(["hosts", "run", "--all", "--command", "show version", "--json"]) == 0
+
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["results"][0]["host"] == "olt-01"
+    assert payload["results"][0]["ok"] is True
+    assert "device output" in payload["results"][0]["output"]
 
 
 def test_cli_hosts_list_json_includes_has_password_but_not_the_value(monkeypatch, tmp_path, capsys):
