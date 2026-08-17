@@ -142,7 +142,17 @@ def _split_username_host(value: str) -> tuple[str | None, str]:
 
 
 def _build_parser() -> argparse.ArgumentParser:
-    from maxconn.cli import _connect, _doctor_cmd, _history, _hosts, _meta, _net, _sftp, _snmp
+    from maxconn.cli import (
+        _config_ops,
+        _connect,
+        _doctor_cmd,
+        _history,
+        _hosts,
+        _meta,
+        _net,
+        _sftp,
+        _snmp,
+    )
 
     parser = argparse.ArgumentParser(prog="maxconn", description="Network automation toolkit CLI.")
     parser.add_argument("--version", action="store_true", help="print version and exit")
@@ -156,6 +166,7 @@ def _build_parser() -> argparse.ArgumentParser:
     _meta.add_subparser(subparsers)
     _sftp.add_subparser(subparsers)
     _snmp.add_subparser(subparsers)
+    _config_ops.add_subparser(subparsers)
 
     config = _config_store().load()
     if config:
@@ -164,7 +175,17 @@ def _build_parser() -> argparse.ArgumentParser:
 
 
 def _dispatch_table() -> dict[str, Callable[[argparse.Namespace], int]]:
-    from maxconn.cli import _connect, _doctor_cmd, _history, _hosts, _meta, _net, _sftp, _snmp
+    from maxconn.cli import (
+        _config_ops,
+        _connect,
+        _doctor_cmd,
+        _history,
+        _hosts,
+        _meta,
+        _net,
+        _sftp,
+        _snmp,
+    )
 
     return {
         "ssh": _connect.dispatch,
@@ -183,6 +204,8 @@ def _dispatch_table() -> dict[str, Callable[[argparse.Namespace], int]]:
         "config": _meta.dispatch_config,
         "sftp": _sftp.dispatch,
         "snmp": _snmp.dispatch,
+        "backup": _config_ops.dispatch_backup,
+        "diff": _config_ops.dispatch_diff,
     }
 
 

@@ -130,6 +130,17 @@ maxconn config list
 maxconn config unset timeout
 ```
 
+### Backup e diff de configuração
+
+```bash
+maxconn backup olt-01                                        # usa o comando padrão do perfil salvo do host
+maxconn backup 192.0.2.10 --username admin --password secret --command "show running-config" --to backup.cfg
+maxconn diff backup-2026-08-01.cfg backup-2026-08-16.cfg      # código de saída 1 se forem diferentes
+maxconn diff backup-2026-08-01.cfg backup-2026-08-16.cfg --json
+```
+
+Backups vão por padrão para `~/.maxconn/backups/<host>/<timestamp>.cfg`, a menos que `--to CAMINHO` seja informado. O comando padrão de backup é resolvido a partir do `--profile` salvo do host (`cisco`, `huawei`, `mikrotik`); use `--command` explicitamente para qualquer outro caso.
+
 ### Descoberta
 
 ```bash

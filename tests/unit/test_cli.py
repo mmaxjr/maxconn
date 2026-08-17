@@ -1352,6 +1352,103 @@ def test_cli_hosts_run_json_output(monkeypatch, tmp_path, capsys):
     assert "device output" in payload["results"][0]["output"]
 
 
+def test_cli_backup_saves_config_to_default_path(monkeypatch, tmp_path, capsys):
+    store = HostStore(base_dir=tmp_path)
+    store.add(HostEntry(name="olt-01", host="10.0.0.1", port=22, protocol="ssh", username="admin", profile="cisco"))
+    monkeypatch.setattr(maxconn.cli, "_host_store", lambda: store)
+    monkeypatch.setattr(maxconn.cli, "DEFAULT_BASE_DIR", tmp_path)
+
+    calls = []
+
+    def fake_connect(host, **kwargs):
+        calls.append((host, kwargs))
+        return FakeConnection()
+
+    monkeypatch.setattr(maxconn.cli.maxconn, "connect", fake_connect)
+
+    assert maxconn.cli.main(["backup", "olt-01"]) == 0
+
+    output = capsys.readouterr().out
+    assert "saved backup to" in output
+    backups_dir = tmp_path / "backups" / "olt-01"
+    assert backups_dir.exists()
+    saved_files = list(backups_dir.glob("*.cfg"))
+    assert len(saved_files) == 1
+    assert saved_files[0].read_text(encoding="utf-8") == "device output"
+    assert calls[0][1]["username"] == "admin"
+
+
+def test_cli_backup_uses_explicit_command_and_destination(monkeypatch, tmp_path, capsys):
+    store = HostStore(base_dir=tmp_path)
+    monkeypatch.setattr(maxconn.cli, "_host_store", lambda: store)
+    monkeypatch.setattr(maxconn.cli.maxconn, "connect", lambda host, **kwargs: FakeConnection())
+
+    destination = tmp_path / "my-backup.cfg"
+    assert (
+        maxconn.cli.main(
+            [
+                "backup",
+                "192.0.2.10",
+                "--username",
+                "admin",
+                "--password",
+                "secret",
+                "--command",
+                "show running-config",
+                "--to",
+                str(destination),
+            ]
+        )
+        == 0
+    )
+
+    assert destination.read_text(encoding="utf-8") == "device output"
+
+
+def test_cli_backup_without_command_or_profile_prints_clean_error(monkeypatch, tmp_path, capsys):
+    store = HostStore(base_dir=tmp_path)
+    monkeypatch.setattr(maxconn.cli, "_host_store", lambda: store)
+
+    assert maxconn.cli.main(["backup", "192.0.2.10", "--username", "admin"]) == 1
+    assert "--command" in capsys.readouterr().err
+
+
+def test_cli_diff_reports_no_differences_for_identical_files(tmp_path, capsys):
+    file_a = tmp_path / "a.cfg"
+    file_b = tmp_path / "b.cfg"
+    file_a.write_text("hostname olt-01\n", encoding="utf-8")
+    file_b.write_text("hostname olt-01\n", encoding="utf-8")
+
+    assert maxconn.cli.main(["diff", str(file_a), str(file_b)]) == 0
+    assert "no differences" in capsys.readouterr().out
+
+
+def test_cli_diff_shows_unified_diff_for_different_files(tmp_path, capsys):
+    file_a = tmp_path / "a.cfg"
+    file_b = tmp_path / "b.cfg"
+    file_a.write_text("hostname olt-01\n", encoding="utf-8")
+    file_b.write_text("hostname olt-02\n", encoding="utf-8")
+
+    assert maxconn.cli.main(["diff", str(file_a), str(file_b)]) == 1
+
+    output = capsys.readouterr().out
+    assert "-hostname olt-01" in output
+    assert "+hostname olt-02" in output
+
+
+def test_cli_diff_json_output(tmp_path, capsys):
+    file_a = tmp_path / "a.cfg"
+    file_b = tmp_path / "b.cfg"
+    file_a.write_text("hostname olt-01\n", encoding="utf-8")
+    file_b.write_text("hostname olt-02\n", encoding="utf-8")
+
+    assert maxconn.cli.main(["diff", str(file_a), str(file_b), "--json"]) == 1
+
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["changed"] is True
+    assert any("hostname olt-02" in line for line in payload["diff"])
+
+
 def test_cli_hosts_list_json_includes_has_password_but_not_the_value(monkeypatch, tmp_path, capsys):
     store = HostStore(base_dir=tmp_path)
     store.add(HostEntry(name="bgp-view", host="10.0.0.1", port=22, protocol="ssh", password="topsecret"))
