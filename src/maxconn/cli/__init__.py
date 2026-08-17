@@ -21,6 +21,9 @@ from maxconn.net.mtr import run_mtr_table as run_mtr_table
 from maxconn.protocol.snmp import SNMPClient as SNMPClient
 
 HOSTS_TEST_MAX_WORKERS = 16
+# Lower than HOSTS_TEST_MAX_WORKERS since a real SSH/Telnet connection is far
+# heavier than a bare TCP port probe (handshake, auth, prompt negotiation).
+HOSTS_RUN_MAX_WORKERS = 8
 
 
 def _config_store() -> ConfigStore:
