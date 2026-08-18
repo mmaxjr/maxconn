@@ -48,7 +48,7 @@ def dispatch(args: argparse.Namespace) -> int:
             since_dt = parse_since(args.since)
             entries = [entry for entry in entries if datetime.fromisoformat(entry.timestamp) >= since_dt]
         if args.limit is not None:
-            entries = entries[-args.limit :]
+            entries = entries[-args.limit :] if args.limit > 0 else []
         if _cli._is_json_output(args):
             _cli._json_output({"entries": [entry.__dict__ for entry in entries]}, args.export)
         elif args.output == "csv":

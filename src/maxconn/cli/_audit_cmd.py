@@ -23,7 +23,13 @@ def dispatch(args: argparse.Namespace) -> int:
         lines = [line for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
         recent = lines[-args.limit :] if args.limit > 0 else lines
         if args.json:
-            _cli._json_output({"entries": [json.loads(line) for line in recent]})
+            entries = []
+            for line in recent:
+                try:
+                    entries.append(json.loads(line))
+                except ValueError:
+                    continue
+            _cli._json_output({"entries": entries})
             return 0
         for line in recent:
             print(line)

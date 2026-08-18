@@ -18,7 +18,11 @@ class ConfigStore:
     def load(self) -> dict[str, str]:
         if not self.config_path.exists():
             return {}
-        return json.loads(self.config_path.read_text(encoding="utf-8"))
+        try:
+            data = json.loads(self.config_path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return {}
+        return data if isinstance(data, dict) else {}
 
     def set(self, key: str, value: str) -> None:
         if key not in ALLOWED_KEYS:
