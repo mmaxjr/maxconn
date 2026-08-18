@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.3.1 - 2026-08-18
+
+- Fix `hosts run` aborting an entire batch (losing every other host's
+  result) when one host raised an exception type other than
+  `MaxConnError`/`OSError`/`TimeoutError`.
+- Fix a corrupted or non-dict `~/.maxconn/config.json` crashing every
+  single `maxconn` command instead of being treated as empty.
+- Fix `enable_persistent_audit_log()` failures (e.g. an unwritable
+  `~/.maxconn`) crashing the whole command instead of degrading
+  gracefully, matching the update-notify code path.
+- Fix `audit tail --json` aborting entirely on a single malformed line
+  in `audit.jsonl` instead of skipping it.
+- Fix `history list --limit 0` showing every entry instead of none
+  (Python's `list[-0:]` is the whole list, not empty).
+
 ## 0.3.0 - 2026-08-17
 
 - Add `maxconn hosts run --all`/`--tag TAG --command "..."` to run a
