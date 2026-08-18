@@ -96,6 +96,30 @@ def test_cli_history_list_limit_keeps_only_the_most_recent(monkeypatch, tmp_path
     assert "10.0.0.2" not in output
 
 
+def test_cli_history_list_limit_zero_shows_nothing(monkeypatch, tmp_path, capsys):
+    # Regression: entries[-args.limit:] with limit=0 computes entries[-0:],
+    # and -0 == 0 in Python, so entries[0:] is the WHOLE list, not empty -
+    # `--limit 0` showed every entry instead of none.
+    store = HistoryStore(base_dir=tmp_path)
+    store.record(
+        alias=None,
+        host="10.0.0.1",
+        port=22,
+        protocol="ssh",
+        username="admin",
+        command="show version",
+        ok=True,
+        exit_status=0,
+        duration=0.1,
+        origin="cli",
+    )
+    monkeypatch.setattr(maxconn.cli, "_history_store", lambda: store)
+
+    assert maxconn.cli.main(["history", "list", "--limit", "0"]) == 0
+
+    assert "10.0.0.1" not in capsys.readouterr().out
+
+
 def test_cli_history_list_since_filters_by_time(monkeypatch, tmp_path, capsys):
     store = HistoryStore(base_dir=tmp_path)
     store.record(

@@ -12,7 +12,6 @@ from typing import Any
 
 import maxconn
 from maxconn import cli as _cli
-from maxconn.exceptions import MaxConnError
 from maxconn.hosts import HostEntry, format_hosts_table, format_seen_hosts_table, parse_tags
 
 
@@ -244,7 +243,7 @@ def dispatch(args: argparse.Namespace) -> int:
                         origin="cli-bulk",
                     )
                     return entry.name, result.ok, result.text
-            except (MaxConnError, OSError, TimeoutError) as exc:
+            except Exception as exc:  # noqa: BLE001 - one host's failure must never abort the whole batch
                 return entry.name, False, str(exc)
 
         worker_count = min(_cli.HOSTS_RUN_MAX_WORKERS, len(entries))

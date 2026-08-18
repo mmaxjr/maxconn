@@ -1337,6 +1337,34 @@ def test_cli_hosts_run_reports_per_host_failure_without_aborting_others(monkeypa
     assert "olt-02 (ok)" in output
 
 
+def test_cli_hosts_run_an_unexpected_exception_type_does_not_abort_the_whole_batch(monkeypatch, tmp_path, capsys):
+    # Regression: _run_one() only caught (MaxConnError, OSError, TimeoutError).
+    # maxconn.connect() raises a plain ValueError for an unsupported protocol
+    # (e.g. a saved host imported/hand-edited with a bad "protocol" value) -
+    # that propagated out of executor.map()'s iteration and aborted the
+    # whole hosts run batch, silently discarding every other host's result,
+    # even ones that had already succeeded.
+    store = HostStore(base_dir=tmp_path)
+    store.add(HostEntry(name="olt-01", host="10.0.0.1", port=22, protocol="ssh", username="admin"))
+    store.add(HostEntry(name="olt-02", host="10.0.0.2", port=22, protocol="ssh", username="admin"))
+    monkeypatch.setattr(maxconn.cli, "_host_store", lambda: store)
+    monkeypatch.setattr(maxconn.cli, "_history_store", lambda: HistoryStore(base_dir=tmp_path))
+
+    def fake_connect(host, **kwargs):
+        if host == "10.0.0.1":
+            raise ValueError("Unsupported protocol: 'bogus'")
+        return FakeConnection()
+
+    monkeypatch.setattr(maxconn.cli.maxconn, "connect", fake_connect)
+
+    assert maxconn.cli.main(["hosts", "run", "--all", "--command", "show version"]) == 1
+
+    output = capsys.readouterr().out
+    assert "olt-01 (fail)" in output
+    assert "Unsupported protocol" in output
+    assert "olt-02 (ok)" in output
+
+
 def test_cli_hosts_run_json_output(monkeypatch, tmp_path, capsys):
     store = HostStore(base_dir=tmp_path)
     store.add(HostEntry(name="olt-01", host="10.0.0.1", port=22, protocol="ssh", username="admin"))
@@ -1571,6 +1599,28 @@ def test_cli_audit_tail_json_output(monkeypatch, tmp_path, capsys):
     assert payload["entries"][0]["host"] == "10.0.0.1"
 
 
+def test_cli_audit_tail_json_skips_a_malformed_line_instead_of_failing_entirely(monkeypatch, tmp_path, capsys):
+    # Regression: audit.jsonl has no file locking (unlike hosts.json/
+    # history.jsonl), so a truncated write (crash mid-append, concurrent
+    # writers) can leave a corrupted line. json.loads() on that single bad
+    # line used to raise and abort `audit tail --json` entirely, hiding
+    # every other valid entry.
+    monkeypatch.setattr(maxconn.cli, "DEFAULT_BASE_DIR", tmp_path)
+    log_path = tmp_path / "audit.jsonl"
+    log_path.write_text(
+        '{"message": "command completed", "host": "10.0.0.1"}\n'
+        '{not valid json\n'
+        '{"message": "command completed", "host": "10.0.0.2"}\n',
+        encoding="utf-8",
+    )
+
+    assert maxconn.cli.main(["audit", "tail", "--json"]) == 0
+
+    payload = json.loads(capsys.readouterr().out)
+    hosts = [entry["host"] for entry in payload["entries"]]
+    assert hosts == ["10.0.0.1", "10.0.0.2"]
+
+
 def test_cli_enables_persistent_audit_log_when_config_flag_is_on(monkeypatch, tmp_path, capsys):
     store = ConfigStore(base_dir=tmp_path)
     store.set("audit_log", "on")
@@ -1583,6 +1633,28 @@ def test_cli_enables_persistent_audit_log_when_config_flag_is_on(monkeypatch, tm
     logger = logging_module.getLogger("maxconn.audit")
     assert any(getattr(h, "_maxconn_persistent", False) for h in logger.handlers)
     logger.handlers = [h for h in logger.handlers if not getattr(h, "_maxconn_persistent", False)]
+
+
+def test_cli_audit_log_setup_failure_prints_clean_error_instead_of_a_traceback(monkeypatch, tmp_path, capsys):
+    # Regression: enable_persistent_audit_log() was called in main() before
+    # the try/except block, so any OSError setting it up (e.g. an unwritable
+    # ~/.maxconn, a full disk) crashed the whole command with a raw
+    # traceback instead of maxconn's normal "Error: ..." message - and did
+    # so for every single command, not just ones touching the audit log.
+    store = ConfigStore(base_dir=tmp_path)
+    store.set("audit_log", "on")
+    monkeypatch.setattr(maxconn.cli, "_config_store", lambda: store)
+    monkeypatch.setattr(maxconn.cli, "DEFAULT_BASE_DIR", tmp_path)
+
+    def boom(path, **kwargs):
+        raise OSError("disk full")
+
+    from maxconn import audit as audit_module
+
+    monkeypatch.setattr(audit_module, "enable_persistent_audit_log", boom)
+
+    assert maxconn.cli.main(["selftest"]) == 0
+    assert "import=ok" in capsys.readouterr().out  # the real command still ran to completion
 
 
 def test_cli_prints_update_notice_when_enabled_and_outdated(monkeypatch, tmp_path, capsys):

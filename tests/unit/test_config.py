@@ -50,6 +50,27 @@ def test_config_load_returns_empty_dict_for_a_missing_file(tmp_path):
     assert store.load() == {}
 
 
+def test_config_load_returns_empty_dict_for_a_corrupted_file(tmp_path):
+    # Regression: main() calls ConfigStore().load() unconditionally, before
+    # its own try/except is even entered - a corrupted config.json (e.g. an
+    # interrupted write, or manual editing) used to raise JSONDecodeError
+    # there uncaught, bricking every single maxconn command with a raw
+    # traceback until the user found and fixed/deleted the file by hand.
+    store = ConfigStore(base_dir=tmp_path)
+    store.config_path.parent.mkdir(parents=True, exist_ok=True)
+    store.config_path.write_text("{not valid json", encoding="utf-8")
+
+    assert store.load() == {}
+
+
+def test_config_load_returns_empty_dict_when_the_file_is_not_a_json_object(tmp_path):
+    store = ConfigStore(base_dir=tmp_path)
+    store.config_path.parent.mkdir(parents=True, exist_ok=True)
+    store.config_path.write_text("[1, 2, 3]", encoding="utf-8")
+
+    assert store.load() == {}
+
+
 def test_config_set_rejects_an_unknown_key(tmp_path):
     store = ConfigStore(base_dir=tmp_path)
 

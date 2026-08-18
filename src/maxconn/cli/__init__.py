@@ -225,13 +225,10 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     config = _config_store().load()
-    if config.get("audit_log") == "on":
-        from maxconn.audit import enable_persistent_audit_log
-
-        enable_persistent_audit_log(DEFAULT_BASE_DIR / "audit.jsonl")
-
     parser = _build_parser()
     try:
+        if config.get("audit_log") == "on":
+            _enable_audit_log_if_possible()
         args = parser.parse_args(resolved_argv)
         handler = _dispatch_table()[args.protocol]
         return handler(args)
@@ -241,6 +238,15 @@ def main(argv: list[str] | None = None) -> int:
     finally:
         if config.get("update_notify") == "on":
             _print_update_notice_if_any()
+
+
+def _enable_audit_log_if_possible() -> None:
+    # A failure to set up the (opt-in) persistent audit log must never
+    # break the actual command - same reasoning as _print_update_notice_if_any.
+    with contextlib.suppress(Exception):
+        from maxconn.audit import enable_persistent_audit_log
+
+        enable_persistent_audit_log(DEFAULT_BASE_DIR / "audit.jsonl")
 
 
 def _print_update_notice_if_any() -> None:
