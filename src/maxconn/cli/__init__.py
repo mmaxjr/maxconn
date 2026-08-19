@@ -147,6 +147,7 @@ def _build_parser() -> argparse.ArgumentParser:
         _audit_cmd,
         _config_ops,
         _connect,
+        _diag,
         _doctor_cmd,
         _history,
         _hosts,
@@ -162,6 +163,7 @@ def _build_parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="protocol", required=True)
 
     _connect.add_subparser(subparsers)
+    _diag.add_subparser(subparsers)
     _hosts.add_subparser(subparsers)
     _net.add_subparser(subparsers)
     _history.add_subparser(subparsers)
@@ -184,6 +186,7 @@ def _dispatch_table() -> dict[str, Callable[[argparse.Namespace], int]]:
         _audit_cmd,
         _config_ops,
         _connect,
+        _diag,
         _doctor_cmd,
         _history,
         _hosts,
@@ -197,6 +200,7 @@ def _dispatch_table() -> dict[str, Callable[[argparse.Namespace], int]]:
     return {
         "ssh": _connect.dispatch,
         "telnet": _connect.dispatch,
+        "diag": _diag.dispatch,
         "hosts": _hosts.dispatch,
         "history": _history.dispatch,
         "ping": _net.dispatch_ping,

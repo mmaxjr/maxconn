@@ -98,6 +98,9 @@ def test_connect_accepts_separate_timeout_arguments(monkeypatch):
 
 
 def test_connection_run_logs_command_without_secrets(caplog):
+    logger = logging.getLogger("maxconn.audit")
+    logger.handlers = []
+    logger.propagate = True
     transport = FakeTransport([b"configure password supersecret\r\nok\r\nOLT>"])
     conn = Connection(transport, host="192.0.2.10", protocol="telnet")
 
@@ -130,6 +133,9 @@ def test_connection_run_redacts_equals_sign_flag_form(caplog):
     # Regression: transport/base.py kept its own separate copy of the
     # secret-redaction regex, which was missing the same "--flag=value"
     # fix already applied to history.py's copy.
+    logger = logging.getLogger("maxconn.audit")
+    logger.handlers = []
+    logger.propagate = True
     transport = FakeTransport([b"login --password=supersecret\r\nok\r\nOLT>"])
     conn = Connection(transport, host="192.0.2.10", protocol="telnet")
 

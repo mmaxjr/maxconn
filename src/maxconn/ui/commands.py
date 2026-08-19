@@ -5,6 +5,7 @@ COMMANDS: dict[str, str] = {
     "history": "manage local command history",
     "ping": "probe host reachability",
     "scan": "scan tcp ports",
+    "diag": "run host diagnostics",
     "doctor": "print local environment diagnostics",
     "selftest": "run quick local CLI checks",
     "discover": "scan a subnet for devices",

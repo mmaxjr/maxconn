@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Add `maxconn diag HOST` for a quick host diagnostic summary combining saved-host
+  resolution, ping reachability, TCP port checks, optional traceroute, text output,
+  JSON output, and export support.
+
 ## 0.3.1 - 2026-08-18
 
 - Fix `hosts run` aborting an entire batch (losing every other host's

@@ -7,6 +7,9 @@ from maxconn.config import ConfigStore
 from maxconn.exceptions import ConnectionTimeoutError, ProtocolError
 from maxconn.history import HistoryStore
 from maxconn.hosts import HostEntry, HostStore
+from maxconn.net.ping import PingResult
+from maxconn.net.scan import ScanResult
+from maxconn.net.traceroute import TraceHop, TraceRouteResult
 from maxconn.ui.theme import get_theme
 
 
@@ -220,6 +223,115 @@ def test_cli_interactive_session_uses_device_prompt(monkeypatch, capsys):
     assert "bgp_view@lg.sp.itx.br>" in output
     assert "routes..." in output
     assert "bgp_view@lg.sp.itx.br> " in connection.prompts
+
+
+def test_cli_diag_resolves_saved_host_and_prints_summary(monkeypatch, tmp_path, capsys):
+    store = HostStore(base_dir=tmp_path)
+    store.add(
+        HostEntry(
+            name="bgp-view",
+            host="177.84.161.226",
+            port=22,
+            protocol="ssh",
+            username="bgp_view",
+            profile="juniper",
+            tags=["bgp", "route-server"],
+        )
+    )
+    scan_calls = {}
+
+    monkeypatch.setattr(maxconn.cli, "_host_store", lambda: store)
+    monkeypatch.setattr(
+        maxconn.cli.maxconn,
+        "ping",
+        lambda host, **kwargs: PingResult(host, True, 0.01, 0, "ok", ""),
+    )
+
+    def fake_scan(host, *, ports, timeout, concurrency):
+        scan_calls["host"] = host
+        scan_calls["ports"] = ports
+        return [
+            ScanResult(host, 22, True, 0.02, ""),
+            ScanResult(host, 443, False, 0.02, "refused"),
+        ]
+
+    monkeypatch.setattr(maxconn.cli.maxconn, "scan", fake_scan)
+    monkeypatch.setattr(
+        maxconn.cli.maxconn,
+        "traceroute",
+        lambda host, **kwargs: TraceRouteResult(
+            host=host,
+            hops=[
+                TraceHop(1, "192.168.1.1", "1 192.168.1.1"),
+                TraceHop(2, "177.84.161.226", "2 177.84.161.226"),
+            ],
+            returncode=0,
+            output="trace",
+            error="",
+        ),
+    )
+
+    assert maxconn.cli.main(["diag", "bgp-view", "--ports", "22,443"]) == 0
+
+    output = capsys.readouterr().out
+    assert "Target: bgp-view (177.84.161.226)" in output
+    assert "Saved host: protocol=ssh port=22 user=bgp_view profile=juniper tags=bgp,route-server" in output
+    assert "Ping: reachable" in output
+    assert "Ports: 22 open, 443 closed" in output
+    assert "Trace: 1 192.168.1.1 -> 2 177.84.161.226" in output
+    assert "Overall: ok" in output
+    assert scan_calls == {"host": "177.84.161.226", "ports": [22, 443]}
+
+
+def test_cli_diag_json_output_includes_probe_results(monkeypatch, capsys):
+    monkeypatch.setattr(
+        maxconn.cli.maxconn,
+        "ping",
+        lambda host, **kwargs: PingResult(host, False, 0.5, 1, "", "timeout"),
+    )
+    monkeypatch.setattr(
+        maxconn.cli.maxconn,
+        "scan",
+        lambda host, **kwargs: [ScanResult(host, 80, True, 0.01, "")],
+    )
+    monkeypatch.setattr(
+        maxconn.cli.maxconn,
+        "traceroute",
+        lambda host, **kwargs: TraceRouteResult(
+            host=host,
+            hops=[TraceHop(1, "10.0.0.1", "1 10.0.0.1")],
+            returncode=0,
+            output="trace",
+            error="",
+        ),
+    )
+
+    assert maxconn.cli.main(["diag", "10.0.0.10", "--ports", "80", "--json"]) == 0
+
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["target"] == "10.0.0.10"
+    assert payload["resolved_host"] == "10.0.0.10"
+    assert payload["ping"]["reachable"] is False
+    assert payload["ports"] == [{"port": 80, "open": True, "elapsed": 0.01, "error": ""}]
+    assert payload["trace"]["hops"] == [{"hop": 1, "address": "10.0.0.1", "raw": "1 10.0.0.1"}]
+    assert payload["overall"] == "warning"
+
+
+def test_cli_diag_returns_failure_when_host_has_no_signal(monkeypatch, capsys):
+    monkeypatch.setattr(
+        maxconn.cli.maxconn,
+        "ping",
+        lambda host, **kwargs: PingResult(host, False, 0.5, 1, "", "timeout"),
+    )
+    monkeypatch.setattr(
+        maxconn.cli.maxconn,
+        "scan",
+        lambda host, **kwargs: [ScanResult(host, 22, False, 0.01, "refused")],
+    )
+
+    assert maxconn.cli.main(["diag", "10.0.0.10", "--ports", "22", "--no-traceroute"]) == 1
+
+    assert "Overall: fail" in capsys.readouterr().out
 
 
 def test_cli_interactive_session_uses_saved_theme_for_device_prompt(monkeypatch, capsys):
@@ -1187,7 +1299,12 @@ def test_cli_hosts_test_all_runs_scans_concurrently(monkeypatch, tmp_path, capsy
     monkeypatch.setattr(maxconn.cli.maxconn, "scan", fake_scan)
 
     def release_soon():
-        time.sleep(0.1)
+        deadline = time.monotonic() + 2.0
+        while time.monotonic() < deadline:
+            with lock:
+                if len(active) > 1:
+                    break
+            time.sleep(0.01)
         started.set()
 
     threading.Thread(target=release_soon).start()
