@@ -6,6 +6,7 @@ from time import sleep
 
 from maxconn.net.ping import ping
 from maxconn.net.traceroute import traceroute
+from maxconn.ui.live import LiveRegion
 
 
 @dataclass(frozen=True)
@@ -196,6 +197,7 @@ def run_mtr_table(
     hops: dict[int, WinMTRHop] = {}
     discover_mtr_hops(host, hops, trace_timeout=trace_timeout)
     rounds = 0
+    live = LiveRegion() if clear else None
     while count is None or rounds < count:
         if rediscover_every is not None and rounds > 0 and rounds % rediscover_every == 0:
             discover_mtr_hops(host, hops, trace_timeout=trace_timeout)
@@ -203,8 +205,10 @@ def run_mtr_table(
         rounds += 1
         if count is None:
             rendered = render_mtr_json(hops) if output == "json" else render_mtr_table(hops)
-            prefix = "\033[2J\033[H" if clear else ""
-            print(prefix + rendered, flush=True)
+            if live is not None:
+                live.update(rendered.splitlines())
+            else:
+                print(rendered, flush=True)
             sleep(interval)
         elif rounds < count and interval > 0:
             sleep(interval)
