@@ -16,6 +16,22 @@ def test_cli_commands_is_derived_from_commands_registry_not_hand_duplicated():
     assert "theme" not in shell.CLI_COMMANDS  # has its own bespoke handling
 
 
+def test_cli_commands_includes_every_top_level_maxconn_command():
+    # Regression: COMMANDS was hand-maintained and drifted - backup, diff,
+    # inventory, audit, config, and completion were all added to the real
+    # CLI's dispatch table across several sessions but never added here, so
+    # none of them were reachable (or tab-completable) from inside
+    # `maxconn start`. Cross-check against the actual dispatch table so this
+    # can't silently drift again.
+    from maxconn.cli import _dispatch_table
+
+    # "start" itself is excluded on purpose - launching a nested interactive
+    # shell from inside the shell isn't a meaningful action.
+    real_commands = set(_dispatch_table().keys()) - {"start"}
+    missing = real_commands - set(shell.COMMANDS) - shell.SPECIAL_COMMANDS
+    assert not missing, f"maxconn start is missing these real CLI commands: {missing}"
+
+
 def test_run_command_has_no_unreachable_preview_fallback():
     # Every name in COMMANDS is either specially handled above or lands in
     # CLI_COMMANDS by construction, so the old "[preview] executaria: ..."
@@ -110,6 +126,10 @@ def test_shell_open_uses_saved_host_protocol(monkeypatch, tmp_path):
 
 
 def test_shell_help_does_not_show_preview_only_commands(capsys):
+    # backup/diff/inventory used to be the go-to example of not-yet-real
+    # commands here - now that they're real (and in COMMANDS), the guard
+    # this test exists for (help must not show anything outside COMMANDS)
+    # needs a name that's guaranteed to never be a real maxconn command.
     signal = shell.run_command(
         "help",
         [],
@@ -120,9 +140,8 @@ def test_shell_help_does_not_show_preview_only_commands(capsys):
 
     output = capsys.readouterr().out
     assert signal == shell.CONTINUE
-    assert "backup" not in output
-    assert "diff" not in output
-    assert "inventory" not in output
+    assert "not-a-real-maxconn-command" not in output
+    assert {line.split()[0] for line in output.splitlines() if line.strip()} <= set(shell.COMMANDS)
 
 
 def test_shell_dispatches_real_cli_commands(monkeypatch):

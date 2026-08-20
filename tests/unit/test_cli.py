@@ -1186,11 +1186,19 @@ def test_cli_hosts_test_all_runs_scans_concurrently(monkeypatch, tmp_path, capsy
 
     monkeypatch.setattr(maxconn.cli.maxconn, "scan", fake_scan)
 
-    def release_soon():
-        time.sleep(0.1)
+    def release_once_two_are_active():
+        # Deterministic instead of a fixed sleep: wait until we actually
+        # observe 2+ workers concurrently active (up to a 2s budget) rather
+        # than assuming 100ms is always "long enough" for thread scheduling
+        # under system load - the fixed-sleep version was flaky.
+        for _ in range(200):
+            with lock:
+                if len(active) >= 2:
+                    break
+            time.sleep(0.01)
         started.set()
 
-    threading.Thread(target=release_soon).start()
+    threading.Thread(target=release_once_two_are_active).start()
 
     assert maxconn.cli.main(["hosts", "test", "--all"]) == 0
 

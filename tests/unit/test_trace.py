@@ -305,6 +305,61 @@ def test_run_mtr_table_can_rediscover_route_periodically(monkeypatch):
     assert trace_calls == ["8.8.8.8", "8.8.8.8", "8.8.8.8"]
 
 
+def test_run_mtr_table_continuous_mode_redraws_in_place_instead_of_clearing_the_screen(monkeypatch):
+    # Regression: continuous mode (count=None) printed a full-screen clear
+    # ("\033[2J\033[H") before every redraw, causing visible flicker/scroll
+    # jump. LiveRegion (src/maxconn/ui/live.py) was written specifically to
+    # fix this - redraw only the lines that changed - but was never wired
+    # into mtr.py, so it sat unused. Now run_mtr_table() should use it for
+    # every render in continuous mode instead of a raw screen clear.
+    class FirstHop:
+        hop = 1
+        address = "192.168.18.1"
+
+    class Trace:
+        def __init__(self):
+            self.hops = [FirstHop()]
+
+    def fake_traceroute(host, timeout=30.0):
+        return Trace()
+
+    def fake_ping(host, timeout=1.0, count=1):
+        class Result:
+            returncode = 0
+            elapsed = 0.010
+
+        return Result()
+
+    updates = []
+
+    class FakeLiveRegion:
+        def __init__(self):
+            pass
+
+        def update(self, lines):
+            updates.append(lines)
+
+    sleep_calls = []
+
+    def fake_sleep(seconds):
+        sleep_calls.append(seconds)
+        if len(sleep_calls) >= 2:
+            raise KeyboardInterrupt
+
+    monkeypatch.setattr(import_module("maxconn.net.mtr"), "traceroute", fake_traceroute)
+    monkeypatch.setattr(import_module("maxconn.net.mtr"), "ping", fake_ping)
+    monkeypatch.setattr(import_module("maxconn.net.mtr"), "LiveRegion", FakeLiveRegion)
+    monkeypatch.setattr(import_module("maxconn.net.mtr"), "sleep", fake_sleep)
+
+    try:
+        run_mtr_table("8.8.8.8", count=None, interval=0, timeout=1.0)
+    except KeyboardInterrupt:
+        pass
+
+    assert len(updates) == 2
+    assert any("8.8.8.8" in line for line in updates[0])
+
+
 def test_render_mtr_json_contains_hop_metrics():
     hops = {
         1: WinMTRHop(index=1, host="192.168.1.1", sent=2, received=2, times=[0.010, 0.020]),
