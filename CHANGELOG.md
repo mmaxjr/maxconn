@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.3.2 - 2026-08-20
+
+- Add `backup`, `diff`, `inventory`, `audit`, `config`, and `completion`
+  to the interactive `maxconn start` shell - they existed in the CLI
+  but were never wired into the shell's command registry, so they were
+  unreachable from inside it.
+- Fix `maxconn mtr`'s continuous mode causing visible flicker/scroll
+  jump on every redraw; now redraws in place instead of clearing the
+  full screen.
+
 ## 0.3.1 - 2026-08-18
 
 - Fix `hosts run` aborting an entire batch (losing every other host's
