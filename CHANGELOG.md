@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Add `maxconn diag HOST` for a quick host diagnostic summary combining saved-host
+  resolution, ping reachability, TCP port checks, optional traceroute, text output,
+  JSON output, and export support.
+
 ## 0.3.2 - 2026-08-20
 
 - Add `backup`, `diff`, `inventory`, `audit`, `config`, and `completion`

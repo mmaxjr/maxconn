@@ -169,6 +169,8 @@ maxconn discover 10.0.0.0/20 --confirm             # exigido acima do limite de 
 maxconn ping 192.0.2.1
 maxconn ping 192.0.2.1 --output json --export ping.json
 maxconn scan 192.0.2.1 --ports 22,23,80,443
+maxconn diag olt-01                                  # host salvo: ping + portas + traceroute
+maxconn diag 192.0.2.1 --ports 22,80,443 --json
 maxconn traceroute 8.8.8.8
 maxconn mtr 8.8.8.8 --count 5 --interval 1
 maxconn snmp get 192.0.2.1 1.3.6.1.2.1.1.5.0 --community public
