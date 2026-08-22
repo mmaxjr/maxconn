@@ -367,6 +367,9 @@ A pasta `examples/` tem scripts pequenos para servir como ponto de partida:
 - `mtr_report.py`
 - `snmp_walk.py`
 - `scan_ports.py`
+- `discover_network.py`
+- `manage_hosts.py`
+- `command_history.py`
 
 Antes de publicar uma versão, rode:
 

@@ -364,6 +364,9 @@ The `examples/` folder has small scripts that can be used as starting points:
 - `mtr_report.py`
 - `snmp_walk.py`
 - `scan_ports.py`
+- `discover_network.py`
+- `manage_hosts.py`
+- `command_history.py`
 
 Before publishing a version, run:
 
