@@ -20,6 +20,9 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - run: pip install -e ".[dev]"
       - run: ruff check src tests
+      # Non-blocking for now: see the [tool.mypy] comment in pyproject.toml.
+      - run: mypy
+        continue-on-error: true
       - run: pytest -v
       - run: python -m build
       - run: twine check dist/*

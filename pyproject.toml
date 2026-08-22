@@ -62,6 +62,7 @@ dev = [
     # SSHTransport against a real, independent SSH implementation. It is
     # never imported by maxconn itself.
     "paramiko>=3.4",
+    "mypy>=1.10",
 ]
 
 [tool.hatch.build.targets.wheel]
@@ -78,3 +79,15 @@ src = ["src"]
 [tool.ruff.lint]
 # PYI034: `Self` requires Python 3.11+; this project supports 3.10+.
 ignore = ["PYI034"]
+
+[tool.mypy]
+python_version = "3.10"
+files = ["src/maxconn"]
+# Starting permissive on purpose: the first real run found 36 pre-existing
+# errors across 12 files. Rather than block on those (or blanket-ignore
+# them, which would hide anything new in the same files), this is wired
+# into CI as a non-blocking step for now - visible in every run's output,
+# but not something a fix requires waiting on. Tighten (drop these, add
+# `disallow_untyped_defs`, make CI fail on error) once the backlog above is
+# actually paid down.
+ignore_missing_imports = true
