@@ -3,14 +3,18 @@ import logging
 
 import pytest
 
-from maxconn.audit import configure_audit_logging, enable_persistent_audit_log
+from maxconn.audit import (
+    _PersistentAuditHandler,
+    configure_audit_logging,
+    enable_persistent_audit_log,
+)
 
 
 @pytest.fixture(autouse=True)
 def _remove_persistent_audit_handler():
     yield
     logger = logging.getLogger("maxconn.audit")
-    logger.handlers = [h for h in logger.handlers if not getattr(h, "_maxconn_persistent", False)]
+    logger.handlers = [h for h in logger.handlers if not isinstance(h, _PersistentAuditHandler)]
 
 
 def test_configure_audit_logging_can_emit_json_records():

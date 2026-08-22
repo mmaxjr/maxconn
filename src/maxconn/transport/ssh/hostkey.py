@@ -72,22 +72,28 @@ def verify_host_key_signature(
 
     try:
         if host_key_type == "ssh-rsa":
-            public_key = parse_rsa_host_key(host_key_blob)
+            rsa_public_key = parse_rsa_host_key(host_key_blob)
             hash_cls = _SIGNATURE_HASH_ALGORITHMS.get(sig_algorithm)
             if hash_cls is None:
                 raise ProtocolError(f"Unsupported host key signature algorithm: {sig_algorithm!r}")
-            public_key.verify(signature, exchange_hash, padding.PKCS1v15(), hash_cls())
+            rsa_public_key.verify(signature, exchange_hash, padding.PKCS1v15(), hash_cls())
             return
 
         if host_key_type == "ecdsa-sha2-nistp256":
             if sig_algorithm != "ecdsa-sha2-nistp256":
                 raise ProtocolError(f"Unsupported ECDSA signature algorithm: {sig_algorithm!r}")
-            public_key = parse_ecdsa_nistp256_host_key(host_key_blob)
+            # Deliberately a separate variable from rsa_public_key above
+            # (not a reassignment): the two branches return different
+            # cryptography key types. Reusing one name across both was
+            # correct at runtime (Python dispatches verify() on the actual
+            # object), but mypy inferred the type from the first branch's
+            # assignment and couldn't check this call at all as a result.
+            ec_public_key = parse_ecdsa_nistp256_host_key(host_key_blob)
             sig_reader = Reader(signature)
             r = int.from_bytes(sig_reader.read_string(), "big")
             s = int.from_bytes(sig_reader.read_string(), "big")
             der_signature = utils.encode_dss_signature(r, s)
-            public_key.verify(der_signature, exchange_hash, ec.ECDSA(hashes.SHA256()))
+            ec_public_key.verify(der_signature, exchange_hash, ec.ECDSA(hashes.SHA256()))
             return
 
         raise ProtocolError(f"Unsupported host key type: {host_key_type!r}")

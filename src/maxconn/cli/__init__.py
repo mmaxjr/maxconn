@@ -39,7 +39,7 @@ def _apply_config_defaults(parser: argparse.ArgumentParser, config: dict[str, st
             continue
         if action.dest in config:
             raw = config[action.dest]
-            action.default = action.type(raw) if action.type else raw
+            action.default = action.type(raw) if callable(action.type) else raw
             action.required = False
 
 

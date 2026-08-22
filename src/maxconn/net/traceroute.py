@@ -4,6 +4,7 @@ import platform
 import re
 import subprocess
 from dataclasses import dataclass
+from typing import cast
 
 
 @dataclass(frozen=True)
@@ -33,8 +34,12 @@ def traceroute(host: str, *, timeout: float = 30.0) -> TraceRouteResult:
             check=False,
         )
     except subprocess.TimeoutExpired as exc:
-        output = exc.stdout or ""
-        error = exc.stderr or "traceroute timed out"
+        # subprocess.run() was called with text=True, so stdout/stderr are
+        # always str at runtime - the stub types them as bytes | str | None
+        # because TimeoutExpired can't express that conditional on the
+        # caller's text= argument.
+        output = cast(str, exc.stdout or "")
+        error = cast(str, exc.stderr or "traceroute timed out")
         return TraceRouteResult(
             host=host,
             hops=_parse_hops(output),

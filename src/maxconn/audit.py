@@ -18,6 +18,18 @@ class JsonAuditFormatter(logging.Formatter):
         return json.dumps(payload, sort_keys=True)
 
 
+class _PersistentAuditHandler(logging.FileHandler):
+    """A FileHandler tagged with its own path, kept across configure_audit_logging() calls.
+
+    A plain FileHandler has no such attribute (hence a dedicated subclass
+    instead of setting an ad-hoc attribute on a base FileHandler instance).
+    """
+
+    def __init__(self, path: Path, *, encoding: str = "utf-8") -> None:
+        super().__init__(path, encoding=encoding)
+        self.maxconn_path = path
+
+
 def configure_audit_logging(
     *,
     stream: TextIO | None = None,
@@ -25,7 +37,7 @@ def configure_audit_logging(
     level: int = logging.INFO,
 ) -> logging.Logger:
     logger = logging.getLogger("maxconn.audit")
-    logger.handlers = [h for h in logger.handlers if getattr(h, "_maxconn_persistent", False)]
+    logger.handlers = [h for h in logger.handlers if isinstance(h, _PersistentAuditHandler)]
     logger.setLevel(level)
     logger.propagate = False
 
@@ -46,14 +58,12 @@ def enable_persistent_audit_log(path: str | Path, *, level: int = logging.INFO) 
     logger = logging.getLogger("maxconn.audit")
     resolved = Path(path)
     for existing in logger.handlers:
-        if getattr(existing, "_maxconn_persistent", False) and getattr(existing, "_maxconn_path", None) == resolved:
+        if isinstance(existing, _PersistentAuditHandler) and existing.maxconn_path == resolved:
             return logger
 
     resolved.parent.mkdir(parents=True, exist_ok=True)
-    handler = logging.FileHandler(resolved, encoding="utf-8")
+    handler = _PersistentAuditHandler(resolved)
     handler.setFormatter(JsonAuditFormatter())
-    handler._maxconn_persistent = True
-    handler._maxconn_path = resolved
     logger.addHandler(handler)
     if logger.level == logging.NOTSET or logger.level > level:
         logger.setLevel(level)

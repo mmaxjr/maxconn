@@ -4,6 +4,7 @@ import platform
 import subprocess
 import time
 from dataclasses import dataclass
+from typing import cast
 
 
 @dataclass(frozen=True)
@@ -28,13 +29,15 @@ def ping(host: str, *, timeout: float = 2.0, count: int = 1) -> PingResult:
             check=False,
         )
     except subprocess.TimeoutExpired as exc:
+        # subprocess.run() was called with text=True, so stdout/stderr are
+        # always str at runtime - see the matching comment in traceroute.py.
         return PingResult(
             host=host,
             reachable=False,
             elapsed=time.monotonic() - start,
             returncode=None,
-            output=exc.stdout or "",
-            error=exc.stderr or "ping timed out",
+            output=cast(str, exc.stdout or ""),
+            error=cast(str, exc.stderr or "ping timed out"),
         )
 
     return PingResult(

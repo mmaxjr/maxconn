@@ -76,6 +76,7 @@ def dispatch(args: argparse.Namespace) -> int:
                 saved = host_store.get(entry.alias)
             except KeyError:
                 saved = None
+        resolved_port: int | None
         if saved is not None:
             resolved_host = saved.host
             resolved_port = saved.port

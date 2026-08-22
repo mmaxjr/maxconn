@@ -53,6 +53,7 @@ def dispatch_backup(args: argparse.Namespace) -> int:
     host = saved_host.host if saved_host else args.host
     port = args.port if args.port is not None else (saved_host.port if saved_host else None)
     username = args.username or (saved_host.username if saved_host else None)
+    password: str | None
     if args.ask_password:
         password = getpass.getpass("Password: ")
     elif args.password is not None:
