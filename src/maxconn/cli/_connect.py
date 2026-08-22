@@ -40,7 +40,11 @@ def dispatch(args: argparse.Namespace) -> int:
         saved_host = store.get(inline_host)
     except KeyError:
         saved_host = None
-    else:
+    # Deliberately checked here instead of in a `try ... else:` clause -
+    # mypy doesn't narrow `saved_host` to exclude None inside `else:` for
+    # this shape, even though it's the same guarantee (else only runs when
+    # the try block didn't raise, so the assignment above always ran).
+    if saved_host is not None:
         if saved_host.protocol != args.protocol:
             raise ValueError(f"saved host {args.host} uses protocol {saved_host.protocol}")
         resolved_host = saved_host.host

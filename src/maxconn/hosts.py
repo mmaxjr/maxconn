@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import builtins
 import json
 from dataclasses import asdict, dataclass, replace
 from datetime import datetime, timezone
@@ -54,7 +55,12 @@ class HostStore:
             hosts[entry.name] = entry
             self._write_hosts(list(hosts.values()))
 
-    def list(self) -> list[HostEntry]:
+    def list(self) -> builtins.list[HostEntry]:
+        # Annotated as `builtins.list` (not bare `list`) throughout this
+        # class: a method named `list` shadows the builtin `list` type for
+        # every annotation below it in the class body, since annotations
+        # are evaluated lazily (PEP 563 / `from __future__ import
+        # annotations`) against the class's own namespace.
         return sorted(
             [self._host_from_dict(item) for item in self._read_json(self.hosts_path)],
             key=lambda entry: entry.name,
@@ -128,7 +134,7 @@ class HostStore:
             self._write_seen(entries)
             return created
 
-    def list_seen(self) -> list[SeenHostEntry]:
+    def list_seen(self) -> builtins.list[SeenHostEntry]:
         entries = [self._seen_from_dict(item) for item in self._read_json(self.seen_hosts_path)]
         return sorted(entries, key=lambda entry: entry.last_seen, reverse=True)
 
@@ -138,7 +144,7 @@ class HostStore:
         *,
         name: str,
         profile: str | None = None,
-        tags: list[str] | None = None,
+        tags: builtins.list[str] | None = None,
         notes: str | None = None,
     ) -> HostEntry:
         seen = self.list_seen()
@@ -158,7 +164,7 @@ class HostStore:
         self.add(entry)
         return entry
 
-    def _read_json(self, path: Path) -> list[dict[str, Any]]:
+    def _read_json(self, path: Path) -> builtins.list[dict[str, Any]]:
         if not path.exists():
             return []
         data = json.loads(path.read_text(encoding="utf-8"))
@@ -166,13 +172,13 @@ class HostStore:
             raise TypeError(f"invalid maxconn data file: {path}")
         return data
 
-    def _write_hosts(self, entries: list[HostEntry]) -> None:
+    def _write_hosts(self, entries: builtins.list[HostEntry]) -> None:
         self._write_json(self.hosts_path, [_host_to_dict(entry) for entry in entries])
 
-    def _write_seen(self, entries: list[SeenHostEntry]) -> None:
+    def _write_seen(self, entries: builtins.list[SeenHostEntry]) -> None:
         self._write_json(self.seen_hosts_path, [asdict(entry) for entry in entries])
 
-    def _write_json(self, path: Path, data: list[dict[str, Any]]) -> None:
+    def _write_json(self, path: Path, data: builtins.list[dict[str, Any]]) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(data, indent=2, sort_keys=True), encoding="utf-8")
 

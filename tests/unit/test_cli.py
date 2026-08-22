@@ -1749,10 +1749,12 @@ def test_cli_enables_persistent_audit_log_when_config_flag_is_on(monkeypatch, tm
 
     assert maxconn.cli.main(["selftest"]) == 0
 
+    from maxconn.audit import _PersistentAuditHandler
+
     logging_module = __import__("logging")
     logger = logging_module.getLogger("maxconn.audit")
-    assert any(getattr(h, "_maxconn_persistent", False) for h in logger.handlers)
-    logger.handlers = [h for h in logger.handlers if not getattr(h, "_maxconn_persistent", False)]
+    assert any(isinstance(h, _PersistentAuditHandler) for h in logger.handlers)
+    logger.handlers = [h for h in logger.handlers if not isinstance(h, _PersistentAuditHandler)]
 
 
 def test_cli_audit_log_setup_failure_prints_clean_error_instead_of_a_traceback(monkeypatch, tmp_path, capsys):

@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Protocol
 
 from maxconn.exceptions import ProtocolError
+from maxconn.transport.base import Transport
 
 SSH_FXP_INIT = 1
 SSH_FXP_VERSION = 2
@@ -359,7 +360,7 @@ def connect_sftp(
 
 
 class _TransportBackedSFTPChannel:
-    def __init__(self, transport: object, channel: SFTPChannel) -> None:
+    def __init__(self, transport: Transport, channel: SFTPChannel) -> None:
         self._transport = transport
         self._channel = channel
 

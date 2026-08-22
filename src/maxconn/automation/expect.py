@@ -23,7 +23,13 @@ class PromptProfile(Enum):
 class ExpectConnection(Protocol):
     def send(self, data: bytes | str) -> None: ...
 
-    def recv(self, timeout: float | None = None) -> bytes: ...
+    # `float`, not `float | None`: passing an explicit `None` here would
+    # reintroduce the "recv() blocks forever" issue that
+    # transport.base.DEFAULT_RECV_TIMEOUT exists to prevent (a bare `None`
+    # sets the underlying socket to blocking mode with no timeout at all).
+    # Kept as a plain literal instead of importing DEFAULT_RECV_TIMEOUT to
+    # avoid a circular import (transport.base imports this module).
+    def recv(self, timeout: float = 30.0) -> bytes: ...
 
 
 @dataclass(frozen=True)

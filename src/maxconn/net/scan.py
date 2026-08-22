@@ -6,6 +6,7 @@ from collections.abc import Iterable
 from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import TimeoutError as _FutureTimeoutError
 from dataclasses import dataclass
+from typing import cast
 
 
 @dataclass(frozen=True)
@@ -68,7 +69,11 @@ def _resolve(host: str, timeout: float) -> str:
         executor.shutdown(wait=False)
         raise TimeoutError(f"DNS resolution for {host!r} timed out after {timeout}s") from exc
     executor.shutdown(wait=False)
-    return results[0][4][0]
+    # sockaddr's first element is always the address string for both IPv4
+    # and IPv6 results; typeshed types it loosely as part of a tuple union
+    # (to also cover the IPv6 flowinfo/scope_id fields), which is why mypy
+    # can't narrow it to `str` on its own.
+    return cast(str, results[0][4][0])
 
 
 def _scan_port(display_host: str, connect_host: str, port: int, *, timeout: float) -> ScanResult:
