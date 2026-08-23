@@ -17,6 +17,7 @@ COMMANDS: dict[str, str] = {
     "diff": "show differences between two config backups",
     "inventory": "list saved hosts, optionally reconciled against a live scan",
     "audit": "view the local audit log",
+    "snippet": "save and reuse command/config snippets",
     "config": "manage local CLI defaults",
     "completion": "print a shell completion script",
     "connect": "open a session with a device",

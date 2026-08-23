@@ -5,6 +5,11 @@
 - Add `maxconn diag HOST` for a quick host diagnostic summary combining saved-host
   resolution, ping reachability, TCP port checks, optional traceroute, text output,
   JSON output, and export support.
+- Add `maxconn snippet add/list/show/edit/remove` for saving reusable command or
+  config snippets (e.g. vendor commands, CGNAT config blocks) locally, tagged and
+  filterable. Content is stored as a plain `.txt` file per snippet under
+  `~/.maxconn/snippets/`, so it can be opened and edited directly in any text
+  editor, not just through the CLI.
 
 ## 0.3.2 - 2026-08-20
 
