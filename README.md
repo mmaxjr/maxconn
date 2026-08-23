@@ -137,6 +137,20 @@ maxconn diff backup-2026-08-01.cfg backup-2026-08-16.cfg --json
 
 Backups default to `~/.maxconn/backups/<host>/<timestamp>.cfg` unless `--to PATH` is given. The default backup command is looked up from the saved host's `--profile` (`cisco`, `huawei`, `mikrotik`); pass `--command` explicitly for anything else.
 
+### Snippets
+
+```bash
+maxconn snippet add huawei-cgnat --command "nat address-group 1 10.0.0.0 10.0.0.255" --tags huawei,cgnat
+maxconn snippet add windows-extend --file extend-disk.txt --tags windows
+maxconn snippet list
+maxconn snippet list --tag huawei
+maxconn snippet show huawei-cgnat
+maxconn snippet edit huawei-cgnat --command "nat address-group 1 10.0.0.0 10.0.0.255 updated"
+maxconn snippet remove windows-extend
+```
+
+Save reusable commands or full config blocks (vendor CLI commands, CGNAT config, Windows Server steps, whatever you want to stop retyping) for later reference. Each snippet's content is stored as a plain `.txt` file under `~/.maxconn/snippets/`, so you can open and edit it directly with any text editor - `maxconn snippet show`/`edit` always reflect whatever is currently on disk.
+
 ### Inventory
 
 ```bash

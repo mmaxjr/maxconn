@@ -20,6 +20,7 @@ from maxconn.hosts import DEFAULT_BASE_DIR as DEFAULT_BASE_DIR
 from maxconn.hosts import HostStore as HostStore
 from maxconn.net.mtr import run_mtr_table as run_mtr_table
 from maxconn.protocol.snmp import SNMPClient as SNMPClient
+from maxconn.snippets import SnippetStore
 
 HOSTS_TEST_MAX_WORKERS = 16
 # Lower than HOSTS_TEST_MAX_WORKERS since a real SSH/Telnet connection is far
@@ -53,6 +54,10 @@ def _host_store() -> HostStore:
 
 def _history_store() -> HistoryStore:
     return HistoryStore()
+
+
+def _snippet_store() -> SnippetStore:
+    return SnippetStore()
 
 
 def _interactive_input(prompt: str) -> str:
@@ -155,6 +160,7 @@ def _build_parser() -> argparse.ArgumentParser:
         _meta,
         _net,
         _sftp,
+        _snippets,
         _snmp,
     )
 
@@ -174,6 +180,7 @@ def _build_parser() -> argparse.ArgumentParser:
     _config_ops.add_subparser(subparsers)
     _inventory.add_subparser(subparsers)
     _audit_cmd.add_subparser(subparsers)
+    _snippets.add_subparser(subparsers)
 
     config = _config_store().load()
     if config:
@@ -194,6 +201,7 @@ def _dispatch_table() -> dict[str, Callable[[argparse.Namespace], int]]:
         _meta,
         _net,
         _sftp,
+        _snippets,
         _snmp,
     )
 
@@ -219,6 +227,7 @@ def _dispatch_table() -> dict[str, Callable[[argparse.Namespace], int]]:
         "diff": _config_ops.dispatch_diff,
         "inventory": _inventory.dispatch,
         "audit": _audit_cmd.dispatch,
+        "snippet": _snippets.dispatch,
     }
 
 
