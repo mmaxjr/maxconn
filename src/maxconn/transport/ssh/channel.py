@@ -123,8 +123,12 @@ class SSHChannel:
 
     def close(self) -> None:
         if not self._closed:
-            self._session.send_message(bytes([messages.SSH_MSG_CHANNEL_CLOSE]) + encode_uint32(self.peer_id))
-            self._closed = True
+            try:
+                self._session.send_message(bytes([messages.SSH_MSG_CHANNEL_CLOSE]) + encode_uint32(self.peer_id))
+            except OSError:
+                pass
+            finally:
+                self._closed = True
 
 
 def open_session_channel(session: EncryptedSession, local_id: int = 0) -> SSHChannel:

@@ -75,3 +75,17 @@ def test_open_session_channel_exposes_pending_auth_banner_on_first_recv():
     assert channel.recv_data() == b"Pre-authentication banner message from server:\r\nhello\r\n"
     assert channel.recv_data() == b"device>"
     assert session.pending_terminal_output == []
+
+
+def test_close_ignores_socket_already_aborted_by_remote():
+    session = _FakeSession([])
+
+    def raise_aborted(_payload: bytes) -> None:
+        raise ConnectionAbortedError("closed")
+
+    session.send_message = raise_aborted
+    channel = SSHChannel(session, local_id=0, peer_id=1)
+
+    channel.close()
+
+    assert channel.closed
