@@ -4,7 +4,7 @@ import pytest
 
 from maxconn.exceptions import ChannelError
 from maxconn.transport.ssh import messages
-from maxconn.transport.ssh.channel import SSHChannel
+from maxconn.transport.ssh.channel import SSHChannel, open_session_channel
 from maxconn.transport.ssh.wire import encode_string, encode_uint32
 
 
@@ -22,6 +22,16 @@ class _FakeSession:
 
 def _channel_data_payload(data: bytes) -> bytes:
     return bytes([messages.SSH_MSG_CHANNEL_DATA]) + encode_uint32(0) + encode_string(data)
+
+
+def _channel_open_confirmation_payload() -> bytes:
+    return (
+        bytes([messages.SSH_MSG_CHANNEL_OPEN_CONFIRMATION])
+        + encode_uint32(0)
+        + encode_uint32(1)
+        + encode_uint32(2 * 1024 * 1024)
+        + encode_uint32(32768)
+    )
 
 
 @pytest.mark.parametrize(
@@ -45,3 +55,11 @@ def test_recv_data_still_raises_on_a_genuinely_unexpected_message_type():
 
     with pytest.raises(ChannelError):
         channel.recv_data()
+
+
+def test_open_session_channel_skips_global_request_before_open_confirmation():
+    session = _FakeSession([bytes([messages.SSH_MSG_GLOBAL_REQUEST]), _channel_open_confirmation_payload()])
+
+    channel = open_session_channel(session)
+
+    assert channel.peer_id == 1

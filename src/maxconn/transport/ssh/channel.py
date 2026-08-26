@@ -127,9 +127,12 @@ def open_session_channel(session: EncryptedSession, local_id: int = 0) -> SSHCha
     )
     session.send_message(request)
 
-    payload = session.recv_message()
-    reader = Reader(payload)
-    msg_type = reader.read_byte()
+    while True:
+        payload = session.recv_message()
+        reader = Reader(payload)
+        msg_type = reader.read_byte()
+        if msg_type not in _CONTROL_ONLY_MESSAGES:
+            break
 
     if msg_type == messages.SSH_MSG_CHANNEL_OPEN_FAILURE:
         reader.read_uint32()  # recipient channel
