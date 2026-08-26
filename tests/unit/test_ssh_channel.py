@@ -12,6 +12,7 @@ class _FakeSession:
     def __init__(self, payloads: list[bytes]) -> None:
         self._payloads = iter(payloads)
         self.sent: list[bytes] = []
+        self.pending_terminal_output: list[bytes] = []
 
     def recv_message(self) -> bytes:
         return next(self._payloads)
@@ -63,3 +64,14 @@ def test_open_session_channel_skips_global_request_before_open_confirmation():
     channel = open_session_channel(session)
 
     assert channel.peer_id == 1
+
+
+def test_open_session_channel_exposes_pending_auth_banner_on_first_recv():
+    session = _FakeSession([_channel_open_confirmation_payload(), _channel_data_payload(b"device>")])
+    session.pending_terminal_output.append(b"Pre-authentication banner message from server:\r\nhello\r\n")
+
+    channel = open_session_channel(session)
+
+    assert channel.recv_data() == b"Pre-authentication banner message from server:\r\nhello\r\n"
+    assert channel.recv_data() == b"device>"
+    assert session.pending_terminal_output == []

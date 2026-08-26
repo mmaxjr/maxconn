@@ -5,7 +5,7 @@ producing an established encrypted session ready for authentication
 from __future__ import annotations
 
 import socket
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from maxconn.exceptions import ProtocolError
 from maxconn.transport.ssh import messages
@@ -35,6 +35,7 @@ class EncryptedSession:
     incoming: SSHSessionCipher
     session_id: bytes
     host_key_blob: bytes
+    pending_terminal_output: list[bytes] = field(default_factory=list)
 
     def send_message(self, payload: bytes) -> None:
         self.sock.sendall(self.outgoing.encode_packet(payload))

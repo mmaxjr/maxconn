@@ -34,10 +34,21 @@ def request_userauth_service(session: EncryptedSession) -> None:
 
 
 def _read_until_auth_result(session: EncryptedSession) -> bytes:
-    """SSH_MSG_USERAUTH_BANNER may arrive before the real result; skip it."""
+    """SSH_MSG_USERAUTH_BANNER may arrive before the real result."""
     for _ in range(_MAX_BANNERS):
         payload = session.recv_message()
         if payload and payload[0] == messages.SSH_MSG_USERAUTH_BANNER:
+            reader = Reader(payload)
+            reader.read_byte()
+            message = reader.read_string()
+            language = reader.read_string()
+            session.pending_terminal_output.append(
+                b"Pre-authentication banner message from server:\r\n"
+                + message.replace(b"\n", b"\r\n")
+                + b"\r\nEnd of banner message from server\r\n"
+            )
+            if language:
+                session.pending_terminal_output.append(b"Banner language: " + language + b"\r\n")
             continue
         return payload
     raise ProtocolError("Too many SSH_MSG_USERAUTH_BANNER messages without an auth result")

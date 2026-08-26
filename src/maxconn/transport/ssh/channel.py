@@ -29,10 +29,17 @@ _CONTROL_ONLY_MESSAGES = (
 
 
 class SSHChannel:
-    def __init__(self, session: EncryptedSession, local_id: int, peer_id: int) -> None:
+    def __init__(
+        self,
+        session: EncryptedSession,
+        local_id: int,
+        peer_id: int,
+        pending_output: list[bytes] | None = None,
+    ) -> None:
         self._session = session
         self.local_id = local_id
         self.peer_id = peer_id
+        self._pending_output = pending_output or []
         self._closed = False
 
     def request_exec(self, command: str) -> None:
@@ -85,6 +92,9 @@ class SSHChannel:
     def recv_data(self) -> bytes:
         """Read one channel message and return its data payload (empty
         bytes for control-only messages like a window adjustment)."""
+        if self._pending_output:
+            return self._pending_output.pop(0)
+
         while True:
             payload = self._session.recv_message()
             reader = Reader(payload)
@@ -147,4 +157,6 @@ def open_session_channel(session: EncryptedSession, local_id: int = 0) -> SSHCha
     reader.read_uint32()  # peer's initial window size (unused, see module docstring)
     reader.read_uint32()  # peer's max packet size (unused, same reason)
 
-    return SSHChannel(session, local_id, peer_id)
+    pending_output = list(session.pending_terminal_output)
+    session.pending_terminal_output.clear()
+    return SSHChannel(session, local_id, peer_id, pending_output=pending_output)
